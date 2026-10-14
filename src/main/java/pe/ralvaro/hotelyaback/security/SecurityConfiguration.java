@@ -6,6 +6,9 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.context.annotation.*;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.ProviderManager;
+import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
@@ -19,6 +22,11 @@ import com.nimbusds.jose.jwk.source.ImmutableSecret;
 @Configuration
 public class SecurityConfiguration {
     @Bean PasswordEncoder passwordEncoder() { return new BCryptPasswordEncoder(12); }
+    @Bean AuthenticationManager authenticationManager(OwnerUserDetailsService users, PasswordEncoder passwords) {
+        var provider=new DaoAuthenticationProvider(users);
+        provider.setPasswordEncoder(passwords);
+        return new ProviderManager(provider);
+    }
     private SecretKeySpec key(String secret) {
         if (secret.getBytes(StandardCharsets.UTF_8).length<32) throw new IllegalArgumentException("HOTELYA_JWT_SECRET debe contener al menos 32 bytes.");
         return new SecretKeySpec(secret.getBytes(StandardCharsets.UTF_8),"HmacSHA256");

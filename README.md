@@ -160,6 +160,8 @@ Las credenciales de la cuenta inicial se configuran exclusivamente en el `.env` 
 
 La cuenta tiene contraseña BCrypt. El access token es un JWT HS256 con emisor, audiencia, usuario y sesión, dura 15 minutos y vive en memoria del navegador. El refresh token aleatorio tiene vigencia absoluta de siete días, se rota, se guarda en una cookie HttpOnly y solo su hash permanece en PostgreSQL. Un refresh reutilizado revoca esa sesión. Logout revoca tanto la renovación como el acceso privado de sus JWT. Las operaciones con cookies exigen CSRF; las escrituras privadas utilizan Authorization Bearer. CORS permite únicamente los orígenes configurados y credenciales. El navegador no consulta Supabase Auth ni Storage: Supabase sigue siendo PostgreSQL privado para Spring.
 
+La autenticación es propia; Supabase aporta PostgreSQL, sin usar Supabase Auth. El login sigue `AuthController → AuthService → AuthenticationManager → DaoAuthenticationProvider`, que carga la cuenta mediante `OwnerUserDetailsService` y verifica el hash con BCrypt. Tras autenticar, `AuthService` crea la sesión y `JwtService` emite el JWT HS256 de 15 minutos. Registro y renovación también usan `JwtService`. Las peticiones protegidas siguen validándose con el Resource Server de Spring Security, incluida la vigencia de la sesión.
+
 API:
 
 - `GET /api/auth/csrf`; `POST /api/auth/register`, `/login`, `/refresh`, `/logout`; `GET /api/auth/me`.
@@ -184,3 +186,9 @@ Desde el frontend, `npm run test:e2e:owner` inicia un backend aislado en 8081 y 
 El editor de habitaciones carga fotografías con un `roomScope` ligado al código del tipo (o al identificador de su borrador). Estos archivos no se ofrecen en Multimedia y no pueden asignarse a otro tipo ni a la identidad del hotel. Las fotografías existentes se conservan. El texto de cada imagen se deriva del nombre del tipo; el dueño no edita texto alternativo.
 
 La escritura de tarifas admite una única entrada de cada modalidad HOUR, PACKAGE y NIGHT. El dueño activa o desactiva las filas del editor; solo se guardan las activas. La moneda de escritura es PEN y las tarifas guardadas por el dueño se consideran reales. El contrato público conserva `currency` y `simulated` para los datos originales y los consumidores existentes. La duración corresponde solo a PACKAGE; el editor ya no solicita hora adicional.
+
+### Capas de persistencia
+
+Los controladores atienden HTTP; los servicios coordinan reglas de negocio, autorización y transacciones; los repositorios de `infrastructure` encapsulan el acceso a PostgreSQL mediante Spring Data JPA/Hibernate. Los servicios y la carga inicial usan repositorios, sin `EntityManager` ni consultas directas. Las entidades conservan su mapeo Jakarta Persistence.
+
+Los repositorios de hotel y sesión declaran las consultas con bloqueo pesimista utilizadas por edición, renovación y cierre de sesión. Los cambios sobre entidades cargadas se guardan al finalizar la transacción del servicio mediante el seguimiento de cambios de JPA; los `flush()` de repositorio conservan los puntos de sincronización requeridos por el flujo.

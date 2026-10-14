@@ -1,5 +1,4 @@
 package pe.ralvaro.hotelyaback.owner;
-import jakarta.persistence.*;
 import java.math.BigDecimal;
 import java.time.LocalTime;
 import java.net.URI;
@@ -12,9 +11,19 @@ import pe.ralvaro.hotelyaback.infrastructure.*;
 import static pe.ralvaro.hotelyaback.application.CatalogDtos.*;
 @Service @Transactional
 public class OwnerHotelService {
-    @PersistenceContext private EntityManager entities;
     private final HotelRepository hotels; private final RoomTypeRepository rooms; private final CatalogService catalog;
-    public OwnerHotelService(HotelRepository hotels,RoomTypeRepository rooms,CatalogService catalog) { this.hotels=hotels; this.rooms=rooms; this.catalog=catalog; }
+    private final StayCardRepository stayCards;
+    private final RoomPhotoRepository roomPhotos;
+    private final RoomDetailRepository roomDetails;
+    private final RateRepository roomRates;
+    private final MediaFileRepository mediaFiles;
+    public OwnerHotelService(HotelRepository hotels,RoomTypeRepository rooms,CatalogService catalog,
+            StayCardRepository stayCards,RoomPhotoRepository roomPhotos,RoomDetailRepository roomDetails,
+            RateRepository roomRates,MediaFileRepository mediaFiles) {
+        this.hotels=hotels; this.rooms=rooms; this.catalog=catalog;
+        this.stayCards=stayCards; this.roomPhotos=roomPhotos; this.roomDetails=roomDetails;
+        this.roomRates=roomRates; this.mediaFiles=mediaFiles;
+    }
     public record OwnerHotel(HotelDetail detail,boolean published) {}
     public record HotelWrite(String name,String description,String address,String location,String phone,String logoPath,String facadePath,String videoPath,
         BigDecimal latitude,BigDecimal longitude,String openingHours,String checkInOutConditions,Boolean hasParking,String mapUrl,LocalTime openingTime,LocalTime closingTime) {}
@@ -22,16 +31,16 @@ public class OwnerHotelService {
     public record RoomRateWrite(RateMode mode,BigDecimal amount,Integer packageHours,String currency) {}
     public record RoomWrite(String name,String description,Integer displayOrder,Integer totalUnits,Integer availableUnits,String photoScope,List<RoomPhotoWrite> photos,List<Detail> details,List<RoomRateWrite> rates) {}
     public Hotel owned(Long owner,boolean lock) {
-        var hotel=hotels.findByOwnerId(owner).orElseThrow(() -> new ApiFailure(404,"Todavía no has creado tu hotel."));
-        if (lock) entities.lock(hotel,LockModeType.PESSIMISTIC_WRITE); return hotel;
+        return (lock ? hotels.findByOwnerIdForUpdate(owner) : hotels.findByOwnerId(owner))
+            .orElseThrow(() -> new ApiFailure(404,"Todavía no has creado tu hotel."));
     }
     @Transactional(readOnly=true) public OwnerHotel read(Long owner) { var h=owned(owner,false); return new OwnerHotel(catalog.ownerDetail(h.getId()),h.isPublished()); }
     public OwnerHotel create(Long owner,HotelWrite request) {
         if (hotels.findByOwnerId(owner).isPresent()) throw new ApiFailure(409,"Tu cuenta ya tiene un hotel.");
         var h=new Hotel("hotel-"+UUID.randomUUID(),"","","","",null,null,null,null); h.assignOwner(owner); h.setPublished(false);
-        entities.persist(h); updateHotel(h,request); entities.flush(); return read(owner);
+        hotels.save(h); updateHotel(h,request); hotels.flush(); return read(owner);
     }
-    public OwnerHotel update(Long owner,HotelWrite request) { var h=owned(owner,true); updateHotel(h,request); entities.flush(); return read(owner); }
+    public OwnerHotel update(Long owner,HotelWrite request) { var h=owned(owner,true); updateHotel(h,request); hotels.flush(); return read(owner); }
     private void updateHotel(Hotel h,HotelWrite r) {
         String name=text(r.name(),"name",200,true), description=text(r.description(),"description",10000,true), address=text(r.address(),"address",500,true), location=text(r.location(),"location",200,true);
         String phone=phone(r.phone(),"phone");
@@ -44,7 +53,7 @@ public class OwnerHotelService {
             text(r.openingHours(),"openingHours",5000,false),text(r.checkInOutConditions(),"checkInOutConditions",5000,false),r.hasParking());
         h.updateLocationAndHours(mapUrl,r.openingTime(),r.closingTime());
     }
-    public OwnerHotel publication(Long owner,boolean publish) { var h=owned(owner,true); if(publish) validatePublication(h); h.setPublished(publish); entities.flush(); return read(owner); }
+    public OwnerHotel publication(Long owner,boolean publish) { var h=owned(owner,true); if(publish) validatePublication(h); h.setPublished(publish); hotels.flush(); return read(owner); }
     public OwnerHotel saveRoom(Long owner,Long id,RoomWrite r) {
         var h=owned(owner,true);
         boolean protectPublication=h.isPublished() && publicationReady(h);
@@ -74,43 +83,43 @@ public class OwnerHotelService {
             if(!combinations.add(rate.mode())) throw ApiFailure.field(key+".mode","Solo se permite una tarifa por modalidad.");
         }
         type.update(text(r.name(),"name",200,true),text(r.description(),"description",10000,true),r.displayOrder(),r.totalUnits(),r.availableUnits());
-        if(id==null) entities.persist(type);
-        for(var p:new ArrayList<>(type.getPhotos())) entities.remove(p);
-        for(var d:new ArrayList<>(type.getDetails())) entities.remove(d);
-        for(var rate:new ArrayList<>(type.getRates())) entities.remove(rate);
+        if(id==null) rooms.save(type);
+        for(var p:new ArrayList<>(type.getPhotos())) roomPhotos.delete(p);
+        for(var d:new ArrayList<>(type.getDetails())) roomDetails.delete(d);
+        for(var rate:new ArrayList<>(type.getRates())) roomRates.delete(rate);
         type.getPhotos().clear(); type.getDetails().clear(); type.getRates().clear();
-        for(int i=0;i<photos.size();i++) { var p=photos.get(i); var entity=new RoomPhoto(type,p.path(),"Habitación "+type.getName(),i); entities.persist(entity); type.getPhotos().add(entity); }
-        for(int i=0;i<details.size();i++) { var d=details.get(i); var entity=new RoomDetail(type,d.kind(),d.text().trim(),i); entities.persist(entity); type.getDetails().add(entity); }
-        for(var rate:rates) { var entity=new Rate(type,rate.mode(),rate.amount(),"PEN",rate.packageHours(),null,false); entities.persist(entity); type.getRates().add(entity); }
-        entities.flush(); if(protectPublication) validatePublication(h); return read(owner);
+        for(int i=0;i<photos.size();i++) { var p=photos.get(i); var entity=new RoomPhoto(type,p.path(),"Habitación "+type.getName(),i); roomPhotos.save(entity); type.getPhotos().add(entity); }
+        for(int i=0;i<details.size();i++) { var d=details.get(i); var entity=new RoomDetail(type,d.kind(),d.text().trim(),i); roomDetails.save(entity); type.getDetails().add(entity); }
+        for(var rate:rates) { var entity=new Rate(type,rate.mode(),rate.amount(),"PEN",rate.packageHours(),null,false); roomRates.save(entity); type.getRates().add(entity); }
+        hotels.flush(); if(protectPublication) validatePublication(h); return read(owner);
     }
     public OwnerHotel deleteRoom(Long owner,Long id) {
         var h=owned(owner,true); boolean protectPublication=h.isPublished() && publicationReady(h); var type=room(h,id);
-        type.getPhotos().forEach(entities::remove); type.getDetails().forEach(entities::remove); type.getRates().forEach(entities::remove);
-        entities.remove(type); entities.flush(); if(protectPublication) validatePublication(h); return read(owner);
+        type.getPhotos().forEach(roomPhotos::delete); type.getDetails().forEach(roomDetails::delete); type.getRates().forEach(roomRates::delete);
+        rooms.delete(type); hotels.flush(); if(protectPublication) validatePublication(h); return read(owner);
     }
-    private RoomType room(Hotel h,Long id) { var r=entities.find(RoomType.class,id); if(r==null || !r.getHotel().getId().equals(h.getId())) throw new ApiFailure(404,"Tipo de habitación no encontrado."); return r; }
+    private RoomType room(Hotel h,Long id) { var r=rooms.findById(id).orElse(null); if(r==null || !r.getHotel().getId().equals(h.getId())) throw new ApiFailure(404,"Tipo de habitación no encontrado."); return r; }
     public OwnerHotel cards(Long owner,List<StayCardInfo> request) {
         var h=owned(owner,true); var cards=list(request,"stayCards",20);
         for(int i=0;i<cards.size();i++) { if(cards.get(i)==null) throw ApiFailure.field("stayCards."+i,"Completa la tarjeta."); text(cards.get(i).title(),"stayCards."+i+".title",200,true); text(cards.get(i).description(),"stayCards."+i+".description",5000,true); }
-        entities.createQuery("delete from StayCard where hotelId=:hotel").setParameter("hotel",h.getId()).executeUpdate();
-        for(int i=0;i<cards.size();i++) entities.persist(new StayCard(h.getId(),cards.get(i).title().trim(),cards.get(i).description().trim(),i));
-        entities.flush(); return read(owner);
+        stayCards.deleteByHotelId(h.getId());
+        for(int i=0;i<cards.size();i++) stayCards.save(new StayCard(h.getId(),cards.get(i).title().trim(),cards.get(i).description().trim(),i));
+        hotels.flush(); return read(owner);
     }
     public boolean referenced(Hotel h,String path) {
         if(path.equals(h.getLogoPath()) || path.equals(h.getFacadePath()) || path.equals(h.getVideoPath())) return true;
-        return entities.createQuery("select count(p) from RoomPhoto p where p.roomType.hotel.id=:hotel and p.path=:path",Long.class).setParameter("hotel",h.getId()).setParameter("path",path).getSingleResult()>0;
+        return roomPhotos.existsByRoomTypeHotelIdAndPath(h.getId(),path);
     }
     public void validatePhotoScope(Hotel h,String scope) {
         if(scope!=null && scope.matches("room-[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}")) return;
-        if(scope!=null && scope.length()<=80 && entities.createQuery("select count(r) from RoomType r where r.hotel.id=:hotel and r.code=:scope",Long.class).setParameter("hotel",h.getId()).setParameter("scope",scope).getSingleResult()>0) return;
+        if(scope!=null && scope.length()<=80 && rooms.existsByHotelIdAndCode(h.getId(),scope)) return;
         throw ApiFailure.field("file","Sube la imagen desde el tipo de habitación correspondiente.");
     }
     private void roomPhotoPath(Hotel h,RoomType room,String path,String field) {
         if(room.getPhotos().stream().anyMatch(p -> p.getPath().equals(path))) return;
         if(path.startsWith("/api/media/")) {
             try {
-                var media=entities.find(MediaFile.class,UUID.fromString(path.substring(11)));
+                var media=mediaFiles.findById(UUID.fromString(path.substring(11))).orElse(null);
                 if(media!=null && media.hotelId.equals(h.getId()) && room.getCode().equals(media.roomScope) && media.contentType.startsWith("image/") && path.equals("/api/media/"+media.id)) return;
             } catch(IllegalArgumentException ignored) {}
         }
@@ -120,7 +129,7 @@ public class OwnerHotelService {
         if(path==null) return;
         if(path.startsWith("/api/media/")) {
             try {
-                var media=entities.find(MediaFile.class,UUID.fromString(path.substring(11)));
+                var media=mediaFiles.findById(UUID.fromString(path.substring(11))).orElse(null);
                 if(media!=null && media.hotelId.equals(h.getId()) && media.roomScope==null && path.equals("/api/media/"+media.id) && media.contentType.startsWith(video?"video/":"image/")) return;
             } catch(IllegalArgumentException ignored) {}
         } else if(path.startsWith(video?"assets/videos/":"assets/images/") && referenced(h,path)) return;

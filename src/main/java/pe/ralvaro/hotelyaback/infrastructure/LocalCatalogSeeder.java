@@ -1,6 +1,5 @@
 package pe.ralvaro.hotelyaback.infrastructure;
 
-import jakarta.persistence.EntityManager;
 import java.math.BigDecimal;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -9,10 +8,15 @@ import pe.ralvaro.hotelyaback.domain.*;
 @Service
 public class LocalCatalogSeeder {
     private final HotelRepository hotels;
-    private final EntityManager entities;
-    public LocalCatalogSeeder(HotelRepository hotels, EntityManager entities) {
+    private final RoomTypeRepository rooms;
+    private final StayCardRepository cards;
+    private final RoomPhotoRepository photos;
+    private final RoomDetailRepository details;
+    private final RateRepository rates;
+    public LocalCatalogSeeder(HotelRepository hotels, RoomTypeRepository rooms, StayCardRepository cards,
+            RoomPhotoRepository photos, RoomDetailRepository details, RateRepository rates) {
         this.hotels = hotels;
-        this.entities = entities;
+        this.rooms=rooms; this.cards=cards; this.photos=photos; this.details=details; this.rates=rates;
     }
     @Transactional
     public void seed() {
@@ -24,9 +28,9 @@ public class LocalCatalogSeeder {
             "San Juan de Miraflores, Lima", "+5117557324",
             "assets/images/lumis-hotel-logo.jpg", "assets/images/lumis-hotel-fachada.jpg",
             "assets/videos/lumis-promocional.mp4"));
-        entities.persist(new StayCard(hotel.getId(), "Una escapada en pareja", "Haz espacio para compartir y descansar a tu ritmo.", 0));
-        entities.persist(new StayCard(hotel.getId(), "Una visita a la ciudad", "Consulta las condiciones y servicios para tu estadía.", 1));
-        entities.persist(new StayCard(hotel.getId(), "Un descanso en el camino", "Organiza tu llegada directamente con el hotel.", 2));
+        cards.save(new StayCard(hotel.getId(), "Una escapada en pareja", "Haz espacio para compartir y descansar a tu ritmo.", 0));
+        cards.save(new StayCard(hotel.getId(), "Una visita a la ciudad", "Consulta las condiciones y servicios para tu estadía.", 1));
+        cards.save(new StayCard(hotel.getId(), "Un descanso en el camino", "Organiza tu llegada directamente con el hotel.", 2));
         addType(hotel, "tematica", "Temática",
             "Un ambiente especial para celebrar en pareja, con detalles románticos. Consulta las opciones de decoración para tu ocasión.",
             "assets/images/lumis-cuarto-tematico.jpg", 0, "25", "60", "20", "120");
@@ -40,12 +44,12 @@ public class LocalCatalogSeeder {
     private void addType(Hotel hotel, String code, String name, String description, String image,
             int order, String hourly, String pack, String extra, String nightly) {
         var type = new RoomType(hotel, code, name, description, order);
-        entities.persist(type);
-        entities.persist(new RoomPhoto(type, image, "Tipo de habitación " + name, 0));
-        entities.persist(new RoomDetail(type, DetailKind.RECOMMENDATION,
+        rooms.save(type);
+        photos.save(new RoomPhoto(type, image, "Tipo de habitación " + name, 0));
+        details.save(new RoomDetail(type, DetailKind.RECOMMENDATION,
             "Consulta las modalidades y servicios disponibles directamente con el hotel.", 0));
-        entities.persist(new Rate(type, RateMode.HOUR, new BigDecimal(hourly), "PEN", null, null, true));
-        entities.persist(new Rate(type, RateMode.PACKAGE, new BigDecimal(pack), "PEN", 3, new BigDecimal(extra), true));
-        entities.persist(new Rate(type, RateMode.NIGHT, new BigDecimal(nightly), "PEN", null, null, true));
+        rates.save(new Rate(type, RateMode.HOUR, new BigDecimal(hourly), "PEN", null, null, true));
+        rates.save(new Rate(type, RateMode.PACKAGE, new BigDecimal(pack), "PEN", 3, new BigDecimal(extra), true));
+        rates.save(new Rate(type, RateMode.NIGHT, new BigDecimal(nightly), "PEN", null, null, true));
     }
 }

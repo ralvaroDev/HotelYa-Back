@@ -121,6 +121,33 @@ class OwnerPanelIntegrationTests {
         mvc.perform(delete("/api/owner/media/"+mediaId).header("Authorization","Bearer "+s.token())).andExpect(status().isNoContent());
         assertFalse(Files.exists(Path.of(System.getProperty("java.io.tmpdir"),"hotelya-owner-test-uploads",mediaId)));
     }
+    @Test void stayCardsAreOrderedReplacedAndIsolatedBetweenOwners() throws Exception {
+        var a=register("cards-a@example.com"); hotel(a);
+        var b=register("cards-b@example.com"); hotel(b);
+        mvc.perform(put("/api/owner/hotel/stay-cards").header("Authorization","Bearer "+a.token())
+            .contentType("application/json").content("""
+                [{"title":"Primera","description":"Uno"},{"title":"Segunda","description":"Dos"}]
+                """))
+            .andExpect(status().isOk()).andExpect(jsonPath("$.detail.stayCards[0].title").value("Primera"))
+            .andExpect(jsonPath("$.detail.stayCards[1].title").value("Segunda"));
+        mvc.perform(put("/api/owner/hotel/stay-cards").header("Authorization","Bearer "+b.token())
+            .contentType("application/json").content("""
+                [{"title":"Otro hotel","description":"Privado"}]
+                """))
+            .andExpect(status().isOk());
+        mvc.perform(put("/api/owner/hotel/stay-cards").header("Authorization","Bearer "+a.token())
+            .contentType("application/json").content("""
+                [{"title":"Reemplazo","description":"Nuevo"}]
+                """))
+            .andExpect(status().isOk()).andExpect(jsonPath("$.detail.stayCards.length()").value(1))
+            .andExpect(jsonPath("$.detail.stayCards[0].title").value("Reemplazo"));
+        mvc.perform(put("/api/owner/hotel/stay-cards").header("Authorization","Bearer "+a.token())
+            .contentType("application/json").content("[]"))
+            .andExpect(status().isOk()).andExpect(jsonPath("$.detail.stayCards").isEmpty());
+        mvc.perform(get("/api/owner/hotel").header("Authorization","Bearer "+b.token()))
+            .andExpect(status().isOk()).andExpect(jsonPath("$.detail.stayCards.length()").value(1))
+            .andExpect(jsonPath("$.detail.stayCards[0].title").value("Otro hotel"));
+    }
     @Test void legacyPublishedHotelCanSaveInformationAndConfigureRoomsProgressively() throws Exception {
         var s=register("legacy@example.com"); hotel(s);
         String path=JsonPath.read(upload(s).getResponse().getContentAsString(),"$.path");

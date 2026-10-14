@@ -1,5 +1,4 @@
 package pe.ralvaro.hotelyaback.owner;
-import jakarta.persistence.*;
 import java.io.*;
 import java.nio.file.*;
 import java.nio.ByteBuffer;
@@ -11,19 +10,21 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.*;
 import org.springframework.web.multipart.MultipartFile;
-import pe.ralvaro.hotelyaback.domain.Hotel;
+import pe.ralvaro.hotelyaback.infrastructure.HotelRepository;
+import pe.ralvaro.hotelyaback.infrastructure.MediaFileRepository;
 @Service @Transactional
 public class MediaService {
-    @PersistenceContext private EntityManager entities;
+    private final MediaFileRepository files;
+    private final HotelRepository hotels;
     private final OwnerHotelService owners; private final Path directory;
-    public MediaService(OwnerHotelService owners,@Value("${owner.upload-dir}") String directory) {
-        this.owners=owners; this.directory=Path.of(directory).toAbsolutePath().normalize();
+    public MediaService(OwnerHotelService owners,MediaFileRepository files,HotelRepository hotels,@Value("${owner.upload-dir}") String directory) {
+        this.files=files; this.hotels=hotels; this.owners=owners; this.directory=Path.of(directory).toAbsolutePath().normalize();
         try { Files.createDirectories(this.directory); } catch(IOException e) { throw new IllegalStateException("No se pudo preparar HOTELYA_UPLOAD_DIR.",e); }
     }
     public record MediaInfo(UUID id,String path,String contentType,String originalName,long byteSize) {}
     private MediaInfo info(MediaFile file) { return new MediaInfo(file.id,"/api/media/"+file.id,file.contentType,file.originalName,file.byteSize); }
     @Transactional(readOnly=true) public List<MediaInfo> list(Long owner) {
-        var h=owners.owned(owner,false); return entities.createQuery("from MediaFile where hotelId=:hotel and roomScope is null order by originalName,id",MediaFile.class).setParameter("hotel",h.getId()).getResultStream().map(this::info).toList();
+        var h=owners.owned(owner,false); return files.findByHotelIdAndRoomScopeIsNullOrderByOriginalNameAscIdAsc(h.getId()).stream().map(this::info).toList();
     }
     public MediaInfo upload(Long owner,MultipartFile file,String roomScope) throws IOException {
         var hotel=owners.owned(owner,true);
@@ -45,22 +46,22 @@ public class MediaService {
         TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
             @Override public void afterCompletion(int status) { if(status!=STATUS_COMMITTED) removeFile(target); }
         });
-        entities.persist(media); return info(media);
+        files.save(media); return info(media);
     }
     public void delete(Long owner,UUID id) {
         var hotel=owners.owned(owner,true); var file=find(id);
         if(!file.hotelId.equals(hotel.getId())) throw new ApiFailure(404,"Archivo no encontrado.");
         if(owners.referenced(hotel,"/api/media/"+id)) throw new ApiFailure(409,"Quita el archivo de la ficha o de las habitaciones y guarda los cambios antes de eliminarlo.");
-        entities.remove(file);
+        files.delete(file);
         TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() { @Override public void afterCommit() { removeFile(directory.resolve(id.toString())); } });
     }
     private void removeFile(Path path) { try { Files.deleteIfExists(path); } catch(IOException e) { org.slf4j.LoggerFactory.getLogger(MediaService.class).warn("No se pudo eliminar el archivo {}",path.getFileName()); } }
     @Transactional(readOnly=true) public MediaFile publicFile(UUID id) {
-        var file=find(id); var h=entities.find(Hotel.class,file.hotelId);
+        var file=find(id); var h=hotels.findById(file.hotelId).orElseThrow(() -> new ApiFailure(404,"Archivo no encontrado."));
         if(!h.isPublished() || !owners.referenced(h,"/api/media/"+id)) throw new ApiFailure(404,"Archivo no encontrado."); return file;
     }
     @Transactional(readOnly=true) public MediaFile privateFile(Long owner,UUID id) { var h=owners.owned(owner,false); var f=find(id); if(!h.getId().equals(f.hotelId)) throw new ApiFailure(404,"Archivo no encontrado."); return f; }
-    private MediaFile find(UUID id) { var file=entities.find(MediaFile.class,id); if(file==null || !Files.isRegularFile(directory.resolve(id.toString()))) throw new ApiFailure(404,"Archivo no encontrado."); return file; }
+    private MediaFile find(UUID id) { var file=files.findById(id).orElse(null); if(file==null || !Files.isRegularFile(directory.resolve(id.toString()))) throw new ApiFailure(404,"Archivo no encontrado."); return file; }
     public Path path(UUID id) { return directory.resolve(id.toString()); }
     static String detect(byte[] b) {
         try {

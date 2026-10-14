@@ -7,18 +7,20 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 import org.springframework.http.HttpStatus;
 import pe.ralvaro.hotelyaback.infrastructure.HotelRepository;
+import pe.ralvaro.hotelyaback.infrastructure.StayCardRepository;
 import pe.ralvaro.hotelyaback.infrastructure.RoomTypeRepository;
 import static pe.ralvaro.hotelyaback.application.CatalogDtos.*;
 
 @Service
 @Transactional(readOnly = true)
 public class CatalogService {
-    @jakarta.persistence.PersistenceContext private jakarta.persistence.EntityManager entities;
     private final HotelRepository hotels;
     private final RoomTypeRepository roomTypes;
-    public CatalogService(HotelRepository hotels, RoomTypeRepository roomTypes) {
+    private final StayCardRepository cards;
+    public CatalogService(HotelRepository hotels, RoomTypeRepository roomTypes, StayCardRepository cards) {
         this.hotels = hotels;
         this.roomTypes = roomTypes;
+        this.cards = cards;
     }
     public List<HotelSummary> list() {
         return hotels.findAll(Sort.by("name", "id")).stream().filter(h -> h.isPublished()).map(h ->
@@ -39,7 +41,6 @@ public class CatalogService {
         return new HotelDetail(h.getId(), h.getName(), h.getDescription(), h.getAddress(), h.getLocation(),
             h.getPhone(), h.getLogoPath(), h.getFacadePath(), h.getVideoPath(), h.getLatitude(),
             h.getLongitude(), h.getOpeningHours(), h.getCheckInOutConditions(),
-            h.getHasParking(), h.getMapUrl(), h.getOpeningTime(), h.getClosingTime(), types, entities.createQuery("select c from StayCard c where c.hotelId=:hotel order by c.displayOrder, c.id", pe.ralvaro.hotelyaback.domain.StayCard.class)
-                .setParameter("hotel", id).getResultStream().map(c -> new StayCardInfo(c.getTitle(), c.getDescription())).toList());
+            h.getHasParking(), h.getMapUrl(), h.getOpeningTime(), h.getClosingTime(), types, cards.findByHotelIdOrderByDisplayOrderAscIdAsc(id).stream().map(c -> new StayCardInfo(c.getTitle(), c.getDescription())).toList());
     }
 }
