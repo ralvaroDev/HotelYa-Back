@@ -39,7 +39,7 @@ public class CatalogService {
         return new HotelDetail(h.getId(), h.getName(), h.getDescription(), h.getAddress(), h.getLocation(),
             h.getPhone(), h.getLogoPath(), h.getFacadePath(), h.getVideoPath(), h.getLatitude(),
             h.getLongitude(), h.getWhatsapp(), h.getOpeningHours(), h.getCheckInOutConditions(),
-            h.getHasParking(), types, entities.createQuery("select c from StayCard c where c.hotelId=:hotel order by c.displayOrder, c.id", pe.ralvaro.hotelyaback.domain.StayCard.class)
+            h.getHasParking(), h.getMapUrl(), h.getOpeningTime(), h.getClosingTime(), types, entities.createQuery("select c from StayCard c where c.hotelId=:hotel order by c.displayOrder, c.id", pe.ralvaro.hotelyaback.domain.StayCard.class)
                 .setParameter("hotel", id).getResultStream().map(c -> new StayCardInfo(c.getTitle(), c.getDescription())).toList());
     }
 }

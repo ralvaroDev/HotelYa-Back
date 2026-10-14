@@ -1,6 +1,8 @@
 package pe.ralvaro.hotelyaback.owner;
 import jakarta.persistence.*;
 import java.math.BigDecimal;
+import java.time.LocalTime;
+import java.net.URI;
 import java.util.*;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -15,7 +17,7 @@ public class OwnerHotelService {
     public OwnerHotelService(HotelRepository hotels,RoomTypeRepository rooms,CatalogService catalog) { this.hotels=hotels; this.rooms=rooms; this.catalog=catalog; }
     public record OwnerHotel(HotelDetail detail,boolean published) {}
     public record HotelWrite(String name,String description,String address,String location,String phone,String logoPath,String facadePath,String videoPath,
-        BigDecimal latitude,BigDecimal longitude,String whatsapp,String openingHours,String checkInOutConditions,Boolean hasParking) {}
+        BigDecimal latitude,BigDecimal longitude,String whatsapp,String openingHours,String checkInOutConditions,Boolean hasParking,String mapUrl,LocalTime openingTime,LocalTime closingTime) {}
     public record RoomWrite(String name,String description,Integer displayOrder,Integer totalUnits,Integer availableUnits,List<Photo> photos,List<Detail> details,List<RateInfo> rates) {}
     public Hotel owned(Long owner,boolean lock) {
         var hotel=hotels.findByOwnerId(owner).orElseThrow(() -> new ApiFailure(404,"Todavía no has creado tu hotel."));
@@ -27,19 +29,23 @@ public class OwnerHotelService {
         var h=new Hotel("hotel-"+UUID.randomUUID(),"","","","",null,null,null,null); h.assignOwner(owner); h.setPublished(false);
         entities.persist(h); updateHotel(h,request); entities.flush(); return read(owner);
     }
-    public OwnerHotel update(Long owner,HotelWrite request) { var h=owned(owner,true); updateHotel(h,request); enforcePublished(h); entities.flush(); return read(owner); }
+    public OwnerHotel update(Long owner,HotelWrite request) { var h=owned(owner,true); updateHotel(h,request); entities.flush(); return read(owner); }
     private void updateHotel(Hotel h,HotelWrite r) {
         String name=text(r.name(),"name",200,true), description=text(r.description(),"description",10000,true), address=text(r.address(),"address",500,true), location=text(r.location(),"location",200,true);
         String phone=phone(r.phone(),"phone"), whatsapp=phone(r.whatsapp(),"whatsapp");
+        String mapUrl=mapUrl(r.mapUrl());
+        if ((r.openingTime()==null)!=(r.closingTime()==null)) throw ApiFailure.field(r.openingTime()==null ? "openingTime" : "closingTime","Completa las horas de apertura y cierre.");
         coordinate(r.latitude(),"latitude",90); coordinate(r.longitude(),"longitude",180);
         if ((r.latitude()==null)!=(r.longitude()==null)) throw ApiFailure.field("latitude","Completa ambas coordenadas o deja ambas vacías.");
         mediaPath(h,r.logoPath(),"logoPath",false); mediaPath(h,r.facadePath(),"facadePath",false); mediaPath(h,r.videoPath(),"videoPath",true);
         h.update(name,description,address,location,phone,r.logoPath(),r.facadePath(),r.videoPath(),r.latitude(),r.longitude(),whatsapp,
             text(r.openingHours(),"openingHours",5000,false),text(r.checkInOutConditions(),"checkInOutConditions",5000,false),r.hasParking());
+        h.updateLocationAndHours(mapUrl,r.openingTime(),r.closingTime());
     }
     public OwnerHotel publication(Long owner,boolean publish) { var h=owned(owner,true); if(publish) validatePublication(h); h.setPublished(publish); entities.flush(); return read(owner); }
     public OwnerHotel saveRoom(Long owner,Long id,RoomWrite r) {
         var h=owned(owner,true);
+        boolean protectPublication=h.isPublished() && publicationReady(h);
         RoomType type=id==null ? new RoomType(h,"room-"+UUID.randomUUID(),"","",0) : room(h,id);
         if(r.displayOrder()==null || r.displayOrder()<0) throw ApiFailure.field("displayOrder","El orden debe ser un entero no negativo.");
         if(r.totalUnits()==null || r.availableUnits()==null || r.totalUnits()<0 || r.availableUnits()<0 || r.availableUnits()>r.totalUnits()) throw ApiFailure.field("availableUnits","Completa cantidades enteras: disponibles entre cero y la cantidad total.");
@@ -67,12 +73,12 @@ public class OwnerHotelService {
         for(int i=0;i<photos.size();i++) { var p=photos.get(i); var entity=new RoomPhoto(type,p.path(),p.altText().trim(),i); entities.persist(entity); type.getPhotos().add(entity); }
         for(int i=0;i<details.size();i++) { var d=details.get(i); var entity=new RoomDetail(type,d.kind(),d.text().trim(),i); entities.persist(entity); type.getDetails().add(entity); }
         for(var rate:rates) { var entity=new Rate(type,rate.mode(),rate.amount(),rate.currency(),rate.packageHours(),rate.additionalHourAmount(),rate.simulated()); entities.persist(entity); type.getRates().add(entity); }
-        entities.flush(); enforcePublished(h); return read(owner);
+        entities.flush(); if(protectPublication) validatePublication(h); return read(owner);
     }
     public OwnerHotel deleteRoom(Long owner,Long id) {
-        var h=owned(owner,true); var type=room(h,id);
+        var h=owned(owner,true); boolean protectPublication=h.isPublished() && publicationReady(h); var type=room(h,id);
         type.getPhotos().forEach(entities::remove); type.getDetails().forEach(entities::remove); type.getRates().forEach(entities::remove);
-        entities.remove(type); entities.flush(); enforcePublished(h); return read(owner);
+        entities.remove(type); entities.flush(); if(protectPublication) validatePublication(h); return read(owner);
     }
     private RoomType room(Hotel h,Long id) { var r=entities.find(RoomType.class,id); if(r==null || !r.getHotel().getId().equals(h.getId())) throw new ApiFailure(404,"Tipo de habitación no encontrado."); return r; }
     public OwnerHotel cards(Long owner,List<StayCardInfo> request) {
@@ -80,7 +86,7 @@ public class OwnerHotelService {
         for(int i=0;i<cards.size();i++) { if(cards.get(i)==null) throw ApiFailure.field("stayCards."+i,"Completa la tarjeta."); text(cards.get(i).title(),"stayCards."+i+".title",200,true); text(cards.get(i).description(),"stayCards."+i+".description",5000,true); }
         entities.createQuery("delete from StayCard where hotelId=:hotel").setParameter("hotel",h.getId()).executeUpdate();
         for(int i=0;i<cards.size();i++) entities.persist(new StayCard(h.getId(),cards.get(i).title().trim(),cards.get(i).description().trim(),i));
-        enforcePublished(h); entities.flush(); return read(owner);
+        entities.flush(); return read(owner);
     }
     public boolean referenced(Hotel h,String path) {
         if(path.equals(h.getLogoPath()) || path.equals(h.getFacadePath()) || path.equals(h.getVideoPath())) return true;
@@ -96,11 +102,21 @@ public class OwnerHotelService {
         } else if(path.startsWith(video?"assets/videos/":"assets/images/") && referenced(h,path)) return;
         throw ApiFailure.field(field,"Selecciona un archivo de tu hotel.");
     }
-    private void enforcePublished(Hotel h) { if(h.isPublished()) validatePublication(h); }
+    private boolean publicationReady(Hotel h) {
+        return rooms.findByHotelIdOrderByDisplayOrderAscIdAsc(h.getId()).stream().anyMatch(r ->
+            r.getTotalUnits()!=null && r.getAvailableUnits()!=null && !r.getPhotos().isEmpty() && !r.getRates().isEmpty());
+    }
     private void validatePublication(Hotel h) {
-        var types=rooms.findByHotelIdOrderByDisplayOrderAscIdAsc(h.getId());
-        boolean ready=types.stream().anyMatch(r -> r.getTotalUnits()!=null && r.getAvailableUnits()!=null && !r.getPhotos().isEmpty() && !r.getRates().isEmpty());
-        if(!ready) throw new ApiFailure(409,"Para publicar o editar un hotel publicado necesitas al menos un tipo con cantidades, una tarifa y una foto. Oculta el hotel para completar su configuración.");
+        if(!publicationReady(h)) throw new ApiFailure(409,"En Habitaciones, completa la cantidad total y las disponibles, una tarifa y una foto de al menos un tipo. Si quieres retirar el último tipo completo, oculta el hotel desde Inicio.");
+    }
+    private static String mapUrl(String value) {
+        String result=text(value,"mapUrl",2048,false);
+        if(result==null) return null;
+        try {
+            URI uri=URI.create(result);
+            if("https".equalsIgnoreCase(uri.getScheme()) && uri.getHost()!=null && uri.getUserInfo()==null) return result;
+        } catch(IllegalArgumentException ignored) {}
+        throw ApiFailure.field("mapUrl","Pega una URL HTTPS válida del lugar.");
     }
     public static String text(String value,String field,int max,boolean required) {
         if(value==null || value.trim().isEmpty()) { if(required) throw ApiFailure.field(field,"Este campo es obligatorio."); return null; }
