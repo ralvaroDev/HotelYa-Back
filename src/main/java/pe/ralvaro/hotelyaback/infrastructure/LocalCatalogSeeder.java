@@ -24,6 +24,9 @@ public class LocalCatalogSeeder {
             "San Juan de Miraflores, Lima", "+5117557324",
             "assets/images/lumis-hotel-logo.jpg", "assets/images/lumis-hotel-fachada.jpg",
             "assets/videos/lumis-promocional.mp4"));
+        entities.persist(new StayCard(hotel.getId(), "Una escapada en pareja", "Haz espacio para compartir y descansar a tu ritmo.", 0));
+        entities.persist(new StayCard(hotel.getId(), "Una visita a la ciudad", "Consulta las condiciones y servicios para tu estadía.", 1));
+        entities.persist(new StayCard(hotel.getId(), "Un descanso en el camino", "Organiza tu llegada directamente con el hotel.", 2));
         addType(hotel, "tematica", "Temática",
             "Un ambiente especial para celebrar en pareja, con detalles románticos. Consulta las opciones de decoración para tu ocasión.",
             "assets/images/lumis-cuarto-tematico.jpg", 0, "25", "60", "20", "120");

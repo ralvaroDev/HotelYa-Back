@@ -22,7 +22,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
     "spring.flyway.schemas=hotelya_test",
     "spring.flyway.placeholders.catalogSchema=hotelya_test",
     "spring.jpa.properties.hibernate.default_schema=hotelya_test",
-    "catalog.seed.enabled=false"
+    "catalog.seed.enabled=false",
+    "owner.jwt.secret=hotelya-test-secret-not-for-production-123456789",
+    "owner.upload-dir=${java.io.tmpdir}/hotelya-catalog-test-uploads"
 })
 @AutoConfigureMockMvc
 @Transactional
@@ -96,7 +98,7 @@ class HotelyaBackApplicationTests {
         }
         mvc.perform(get("/api/hotels").header("Origin", "https://untrusted.example"))
             .andExpect(status().isForbidden());
-        mvc.perform(post("/api/hotels")).andExpect(status().isMethodNotAllowed());
+        mvc.perform(post("/api/hotels")).andExpect(status().isForbidden());
     }
     @Test void duplicateTypeCodeIsRejectedWithinAHotel() {
         Long id = seed();

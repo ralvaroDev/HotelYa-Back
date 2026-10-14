@@ -40,6 +40,22 @@ public class Hotel {
     @Column(name = "has_parking")
     private Boolean hasParking;
 
+    @Column(name = "owner_id", unique = true)
+    private Long ownerId;
+    @Column(nullable = false)
+    private boolean published = true;
+    public Long getOwnerId() { return ownerId; }
+    public boolean isPublished() { return published; }
+    public void assignOwner(Long id) { ownerId = id; }
+    public void setPublished(boolean value) { published = value; }
+    public void update(String name, String description, String address, String location, String phone,
+            String logo, String facade, String video, BigDecimal lat, BigDecimal lng, String whatsapp,
+            String hours, String conditions, Boolean parking) {
+        this.name = name; this.description = description; this.address = address; this.location = location;
+        this.phone = phone; this.logoPath = logo; this.facadePath = facade; this.videoPath = video;
+        this.latitude = lat; this.longitude = lng; this.whatsapp = whatsapp; this.openingHours = hours;
+        this.checkInOutConditions = conditions; this.hasParking = parking;
+    }
     protected Hotel() {}
 
     public Hotel(String code, String name, String description, String address, String location, String phone, String logoPath, String facadePath, String videoPath) {
