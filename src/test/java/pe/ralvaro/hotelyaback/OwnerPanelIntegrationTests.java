@@ -136,6 +136,27 @@ class OwnerPanelIntegrationTests {
         mvc.perform(put("/api/owner/hotel/room-types/"+roomId).header("Authorization","Bearer "+s.token()).contentType("application/json").content(room(path,1))).andExpect(status().isOk()).andExpect(jsonPath("$.published").value(true));
         mvc.perform(delete("/api/owner/hotel/room-types/"+roomId).header("Authorization","Bearer "+s.token())).andExpect(status().isConflict());
     }
+    @Test void onePeruvianPhoneIsPersistedAndInvalidNumbersAreRejected() throws Exception {
+        var s=register("phone@example.com"); hotel(s);
+        String url="/api/owner/hotel";
+        for(String invalid:List.of("+51987abc321","+34987654321","987654321","+51 987 654 321","+519876543","+5117557324","+519876543210")) {
+            mvc.perform(put(url).header("Authorization","Bearer "+s.token()).contentType("application/json")
+                .content(hotel.replace("}",",\"phone\":\""+invalid+"\"}")))
+                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.fields.phone").exists());
+        }
+        for(String number:List.of("+51987654321","+51912345678")) {
+            mvc.perform(put(url).header("Authorization","Bearer "+s.token()).contentType("application/json")
+                .content(hotel.replace("}",",\"phone\":\""+number+"\"}")))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.detail.phone").value(number))
+                .andExpect(jsonPath("$.detail.whatsapp").doesNotExist());
+            mvc.perform(get(url).header("Authorization","Bearer "+s.token()))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.detail.phone").value(number));
+            assertEquals(number,jdbc.queryForObject("select phone from hotelya_test.hotel",String.class));
+        }
+        mvc.perform(put(url).header("Authorization","Bearer "+s.token()).contentType("application/json").content(hotel))
+            .andExpect(status().isOk()).andExpect(jsonPath("$.detail.phone").doesNotExist())
+            .andExpect(jsonPath("$.detail.whatsapp").doesNotExist());
+    }
     @Test void locationAndHoursAreValidatedAndCanBeCleared() throws Exception {
         var s=register("hours@example.com"); hotel(s);
         for(String invalid:List.of("javascript:alert(1)","http://example.com","https://user:pass@example.com")) {

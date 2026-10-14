@@ -32,8 +32,6 @@ public class Hotel {
     private BigDecimal latitude;
     @Column(name = "longitude", precision = 9, scale = 6)
     private BigDecimal longitude;
-    @Column(name = "whatsapp", length = 40)
-    private String whatsapp;
     @Column(name = "opening_hours", columnDefinition = "text")
     private String openingHours;
     @Column(name = "check_in_out_conditions", columnDefinition = "text")
@@ -64,11 +62,11 @@ public class Hotel {
     public void assignOwner(Long id) { ownerId = id; }
     public void setPublished(boolean value) { published = value; }
     public void update(String name, String description, String address, String location, String phone,
-            String logo, String facade, String video, BigDecimal lat, BigDecimal lng, String whatsapp,
+            String logo, String facade, String video, BigDecimal lat, BigDecimal lng,
             String hours, String conditions, Boolean parking) {
         this.name = name; this.description = description; this.address = address; this.location = location;
         this.phone = phone; this.logoPath = logo; this.facadePath = facade; this.videoPath = video;
-        this.latitude = lat; this.longitude = lng; this.whatsapp = whatsapp; this.openingHours = hours;
+        this.latitude = lat; this.longitude = lng; this.openingHours = hours;
         this.checkInOutConditions = conditions; this.hasParking = parking;
     }
     protected Hotel() {}
@@ -97,7 +95,6 @@ public class Hotel {
     public String getVideoPath() { return videoPath; }
     public BigDecimal getLatitude() { return latitude; }
     public BigDecimal getLongitude() { return longitude; }
-    public String getWhatsapp() { return whatsapp; }
     public String getOpeningHours() { return openingHours; }
     public String getCheckInOutConditions() { return checkInOutConditions; }
     public Boolean getHasParking() { return hasParking; }
