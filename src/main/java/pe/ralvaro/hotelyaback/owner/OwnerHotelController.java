@@ -19,4 +19,5 @@ public class OwnerHotelController {
     @PostMapping("/room-types") @ResponseStatus(HttpStatus.CREATED) public OwnerHotel add(@AuthenticationPrincipal Jwt jwt,@RequestBody RoomWrite request) { return service.saveRoom(owner(jwt),null,request); }
     @PutMapping("/room-types/{id}") public OwnerHotel updateRoom(@AuthenticationPrincipal Jwt jwt,@PathVariable Long id,@RequestBody RoomWrite request) { return service.saveRoom(owner(jwt),id,request); }
     @DeleteMapping("/room-types/{id}") public OwnerHotel deleteRoom(@AuthenticationPrincipal Jwt jwt,@PathVariable Long id) { return service.deleteRoom(owner(jwt),id); }
+    @PutMapping("/stay-cards") public OwnerHotel cards(@AuthenticationPrincipal Jwt jwt,@RequestBody List<StayCardInfo> request) { return service.cards(owner(jwt),request); }
 }

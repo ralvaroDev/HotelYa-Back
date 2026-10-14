@@ -75,6 +75,13 @@ public class OwnerHotelService {
         entities.remove(type); entities.flush(); enforcePublished(h); return read(owner);
     }
     private RoomType room(Hotel h,Long id) { var r=entities.find(RoomType.class,id); if(r==null || !r.getHotel().getId().equals(h.getId())) throw new ApiFailure(404,"Tipo de habitación no encontrado."); return r; }
+    public OwnerHotel cards(Long owner,List<StayCardInfo> request) {
+        var h=owned(owner,true); var cards=list(request,"stayCards",20);
+        for(int i=0;i<cards.size();i++) { if(cards.get(i)==null) throw ApiFailure.field("stayCards."+i,"Completa la tarjeta."); text(cards.get(i).title(),"stayCards."+i+".title",200,true); text(cards.get(i).description(),"stayCards."+i+".description",5000,true); }
+        entities.createQuery("delete from StayCard where hotelId=:hotel").setParameter("hotel",h.getId()).executeUpdate();
+        for(int i=0;i<cards.size();i++) entities.persist(new StayCard(h.getId(),cards.get(i).title().trim(),cards.get(i).description().trim(),i));
+        enforcePublished(h); entities.flush(); return read(owner);
+    }
     public boolean referenced(Hotel h,String path) {
         if(path.equals(h.getLogoPath()) || path.equals(h.getFacadePath()) || path.equals(h.getVideoPath())) return true;
         return entities.createQuery("select count(p) from RoomPhoto p where p.roomType.hotel.id=:hotel and p.path=:path",Long.class).setParameter("hotel",h.getId()).setParameter("path",path).getSingleResult()>0;
