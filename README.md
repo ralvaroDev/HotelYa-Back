@@ -115,7 +115,25 @@ El esquema `hotelya` no figura entre los esquemas publicados por PostgREST y las
 - El catálogo público solo permite lectura; las escrituras requieren JWT y están bajo `/api/owner`.
 - La ficha conserva `hotel-central.html?id=<id>`. Para enlaces antiguos sin parámetro, consulta el listado y muestra el primer hotel; si está vacío, muestra el estado vacío.
 
-Solo el perfil `local` ejecuta la semilla mediante JPA. Si ya existe el hotel con código `lumis-hotel`, no modifica el hotel, sus tipos, fotos ni tarifas: conserva ediciones y eliminaciones deliberadas. Si se desea reponer datos eliminados, debe hacerse explícitamente, no mediante reinicios.
+El arranque nunca crea cuentas ni datos de ejemplo, incluido el perfil `local`. Una base nueva queda vacía tras aplicar las migraciones. Los dueños se registran y crean su hotel mediante la aplicación.
+
+### Ejemplo local opcional
+
+Después de iniciar Supabase local y arrancar el backend al menos una vez para aplicar Flyway:
+
+```bash
+./scripts/seed-local.sh
+```
+
+Este comando ejecuta `scripts/local/seed-catalog.sql` en el contenedor local `supabase_db_hotelya`, dentro de una transacción. No utiliza conexiones remotas ni crea cuentas. Si `lumis-hotel` ya existe, conserva sus datos y las eliminaciones deliberadas; no repone habitaciones ni modifica precios.
+
+Para administrar el hotel de ejemplo, registrar primero una cuenta desde «Acceder», sin crear otro hotel, y ejecutar explícitamente:
+
+```bash
+./scripts/seed-local.sh --owner-email tu-correo@example.com
+```
+
+La asociación utiliza una cuenta existente: no recibe ni modifica contraseñas, no cambia otro propietario y rechaza cuentas con otro hotel. Si falla, se revierte toda la preparación. Se puede repetir. `--schema hotelya_test` permite probarlo en el esquema aislado; solo se admiten `hotelya` y `hotelya_test`. Los datos existentes de desarrollo se conservan al retirar el bootstrap; este cambio no los elimina.
 
 Los datos del hotel proceden del frontend existente: nombre, descripción, dirección, teléfono y referencias de logo, fachada y video. Esto conserva los datos del proyecto; no representa una nueva verificación del teléfono o de los servicios del hotel. WhatsApp, coordenadas, horarios, condiciones de entrada/salida y estacionamiento quedan en `null` mientras se desconozcan.
 
@@ -140,7 +158,7 @@ curl http://localhost:8080/api/hotels
 
 Las pruebas de integración llevan la etiqueta `integration`, se ejecutan explícitamente con la tarea `integrationTest` y utilizan el esquema separado `hotelya_test`. Flyway crea y valida ese esquema; los registros de prueba se revierten al terminar cada prueba. No se limpia ni modifica el catálogo `hotelya`, ni se ejecutan resets de Supabase.
 
-Cubren el acceso por 55329, la migración, listado vacío, ficha y 404, tipos/fotos/tarifas, valores desconocidos, semilla sin duplicados y conservación de ediciones, unicidad del código por hotel, exclusión de la Data API y CORS. Las pruebas de navegador verifican navegación, archivos multimedia, carga, vacío, error y reintento; las pruebas de fallos simulan respuestas HTTP y no modifican la base de datos.
+Cubren el acceso por 55329, la migración, listado vacío, ficha y 404, tipos/fotos/tarifas, valores desconocidos, seed SQL explícito sin duplicados, conservación de ediciones, asociación de cuentas registradas y arranque local sin datos automáticos, unicidad del código por hotel, exclusión de la Data API y CORS. Las pruebas de navegador verifican navegación, archivos multimedia, carga, vacío, error y reintento; las pruebas de fallos simulan respuestas HTTP y no modifican la base de datos.
 
 ## Panel de dueños y JWT
 
@@ -153,10 +171,8 @@ Configuración adicional en el `.env` privado (el script `run-local.sh` la expor
 | `HOTELYA_JWT_SECRET` | Secreto aleatorio de al menos 32 bytes, estable entre reinicios; generar con `openssl rand -base64 48` |
 | `HOTELYA_UPLOAD_DIR` | Ruta absoluta persistente y escribible para archivos; localmente puede ser `HotelYa-Back/.uploads` |
 | `HOTELYA_COOKIE_SECURE` | `false` para HTTP local; `true` para HTTPS, con cookies Secure y SameSite=None |
-| `HOTELYA_LUMIS_OWNER_EMAIL` | Correo de la cuenta inicial de Lumi’s, solo con perfil `local` |
-| `HOTELYA_LUMIS_OWNER_PASSWORD` | Contraseña inicial de esa cuenta, mínimo 8 caracteres y máximo 72 bytes |
 
-Las credenciales de la cuenta inicial se configuran exclusivamente en el `.env` privado. No publicar ese archivo ni el directorio de archivos. Ambos valores de la cuenta inicial deben configurarse juntos. La inicialización conserva la contraseña y asociación existentes; no recrea habitaciones ni cambia precios o cantidades.
+No publicar `.env` ni el directorio de archivos. Las variables antiguas `HOTELYA_LUMIS_OWNER_EMAIL` y `HOTELYA_LUMIS_OWNER_PASSWORD` ya no se utilizan y pueden retirarse del archivo privado. Todas las cuentas se crean mediante el registro normal; el ejemplo local se prepara únicamente con el comando explícito anterior.
 
 La cuenta tiene contraseña BCrypt. El access token es un JWT HS256 con emisor, audiencia, usuario y sesión, dura 15 minutos y vive en memoria del navegador. El refresh token aleatorio tiene vigencia absoluta de siete días, se rota, se guarda en una cookie HttpOnly y solo su hash permanece en PostgreSQL. Un refresh reutilizado revoca esa sesión. Logout revoca tanto la renovación como el acceso privado de sus JWT. Las operaciones con cookies exigen CSRF; las escrituras privadas utilizan Authorization Bearer. CORS permite únicamente los orígenes configurados y credenciales. El navegador no consulta Supabase Auth ni Storage: Supabase sigue siendo PostgreSQL privado para Spring.
 

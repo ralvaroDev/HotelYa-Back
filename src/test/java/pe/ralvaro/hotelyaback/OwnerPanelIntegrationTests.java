@@ -28,7 +28,7 @@ import static org.springframework.security.test.web.servlet.request.SecurityMock
 @Tag("integration")
 @SpringBootTest(properties = {
         "spring.flyway.default-schema=hotelya_test", "spring.flyway.schemas=hotelya_test", "spring.flyway.placeholders.catalogSchema=hotelya_test",
-        "spring.jpa.properties.hibernate.default_schema=hotelya_test", "catalog.seed.enabled=false",
+        "spring.jpa.properties.hibernate.default_schema=hotelya_test",
         "owner.jwt.secret=hotelya-test-secret-not-for-production-123456789", "owner.upload-dir=${java.io.tmpdir}/hotelya-owner-test-uploads"
 })
 @AutoConfigureMockMvc

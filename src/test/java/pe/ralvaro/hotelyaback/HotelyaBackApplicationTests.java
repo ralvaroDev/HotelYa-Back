@@ -14,7 +14,8 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
 import pe.ralvaro.hotelyaback.model.Hotel;
 import pe.ralvaro.hotelyaback.repository.HotelRepository;
-import pe.ralvaro.hotelyaback.service.LocalCatalogSeeder;
+import pe.ralvaro.hotelyaback.testsupport.CatalogSeedFixture;
+import org.springframework.context.annotation.Import;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
@@ -26,17 +27,17 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         "spring.flyway.schemas=hotelya_test",
         "spring.flyway.placeholders.catalogSchema=hotelya_test",
         "spring.jpa.properties.hibernate.default_schema=hotelya_test",
-        "catalog.seed.enabled=false",
         "owner.jwt.secret=hotelya-test-secret-not-for-production-123456789",
         "owner.upload-dir=${java.io.tmpdir}/hotelya-catalog-test-uploads"
 })
+@Import(CatalogSeedFixture.class)
 @AutoConfigureMockMvc
 @Transactional
 class HotelyaBackApplicationTests {
     @Autowired
     MockMvc mvc;
     @Autowired
-    LocalCatalogSeeder seeder;
+    CatalogSeedFixture seeder;
     @Autowired
     HotelRepository hotels;
     @Autowired
@@ -132,4 +133,51 @@ class HotelyaBackApplicationTests {
         assertThrows(org.springframework.dao.DataIntegrityViolationException.class, () -> jdbc.update(
                 "INSERT INTO hotelya_test.room_type (hotel_id, code, name, description, display_order) VALUES (?, 'tematica', 'Otra', 'Duplicada', 0)", id));
     }
+
+    @Test
+    void explicitSeedDoesNotRestoreDeletedRooms() {
+        Long id = seed();
+        jdbc.update("DELETE FROM hotelya_test.rate");
+        jdbc.update("DELETE FROM hotelya_test.room_photo");
+        jdbc.update("DELETE FROM hotelya_test.room_detail");
+        jdbc.update("DELETE FROM hotelya_test.room_type");
+        seeder.seed();
+        assertEquals(0, jdbc.queryForObject("SELECT count(*) FROM hotelya_test.room_type", Integer.class));
+        assertEquals(1, jdbc.queryForObject("SELECT count(*) FROM hotelya_test.hotel WHERE id = ?", Integer.class, id));
+    }
+
+    private void registerSeedOwner(String email) throws Exception {
+        mvc.perform(post("/api/auth/register")
+                        .with(org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf())
+                        .contentType("application/json")
+                        .content("{\"email\":\"" + email + "\",\"password\":\"password123\"}"))
+                .andExpect(status().isCreated());
+    }
+
+    private void assignSeedOwner(String email) throws Exception {
+        jdbc.queryForObject("SELECT set_config('hotelya.seed.owner_email', ?, true)", String.class, email);
+        jdbc.execute(java.nio.file.Files.readString(java.nio.file.Path.of("scripts/local/assign-owner.sql")));
+    }
+
+    @Test
+    void explicitAssignmentUsesRegisteredAccountAndKeepsPasswordOnRepeat() throws Exception {
+        Long hotelId = seed();
+        registerSeedOwner("owner@example.com");
+        String hash = jdbc.queryForObject("SELECT password_hash FROM hotelya_test.owner_account", String.class);
+        assignSeedOwner(" Owner@Example.com ");
+        assignSeedOwner("owner@example.com");
+        assertEquals(jdbc.queryForObject("SELECT id FROM hotelya_test.owner_account", Long.class),
+                jdbc.queryForObject("SELECT owner_id FROM hotelya_test.hotel WHERE id = ?", Long.class, hotelId));
+        assertEquals(hash, jdbc.queryForObject("SELECT password_hash FROM hotelya_test.owner_account", String.class));
+    }
+
+    @Test
+    void explicitAssignmentCannotReplaceAnExistingOwner() throws Exception {
+        seed();
+        registerSeedOwner("first@example.com");
+        registerSeedOwner("second@example.com");
+        assignSeedOwner("first@example.com");
+        assertThrows(org.springframework.dao.DataAccessException.class, () -> assignSeedOwner("second@example.com"));
+    }
+
 }

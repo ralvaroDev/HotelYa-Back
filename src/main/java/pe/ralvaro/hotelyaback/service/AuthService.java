@@ -39,7 +39,7 @@ public class AuthService {
         this.refreshTokens = refreshTokens;
     }
 
-    public String normalizedEmail(String email) {
+    private String normalizedEmail(String email) {
         if (email == null || email.trim().length() > 254 || !email.trim().matches("[^\\s@]+@[^\\s@]+\\.[^\\s@]+"))
             throw ApiFailure.field("email", "Introduce un correo válido.");
         return email.trim().toLowerCase(Locale.ROOT);
@@ -59,7 +59,7 @@ public class AuthService {
         return newSession(account);
     }
 
-    public void validatePassword(String password) {
+    private void validatePassword(String password) {
         if (password == null || password.length() < 8 || password.getBytes(StandardCharsets.UTF_8).length > 72)
             throw ApiFailure.field("password", "Usa al menos 8 caracteres y como máximo 72 bytes.");
     }
@@ -114,17 +114,6 @@ public class AuthService {
         var a = accounts.findById(id).orElse(null);
         if (a == null) throw new ApiFailure(401, "Inicia sesión para continuar.");
         return new AuthUser(a.id, a.email);
-    }
-
-    public OwnerAccount bootstrap(String email, String password) {
-        email = normalizedEmail(email);
-        validatePassword(password);
-        final String normalized = email;
-        return byEmail(email).orElseGet(() -> {
-            var account = new OwnerAccount(normalized, passwords.encode(password));
-            account = accounts.saveAndFlush(account);
-            return account;
-        });
     }
 
 }
