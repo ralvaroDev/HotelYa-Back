@@ -36,6 +36,14 @@ public class RoomType {
     @OrderBy("id ASC")
     private List<Rate> rates = new ArrayList<>();
 
+    @Column(name = "total_units") private Integer totalUnits;
+    @Column(name = "available_units") private Integer availableUnits;
+    public Integer getTotalUnits() { return totalUnits; }
+    public Integer getAvailableUnits() { return availableUnits; }
+    public void update(String name, String description, int order, Integer total, Integer available) {
+        this.name = name; this.description = description; this.displayOrder = order;
+        this.totalUnits = total; this.availableUnits = available;
+    }
     protected RoomType() {}
 
     public RoomType(Hotel hotel, String code, String name, String description, int displayOrder) {
