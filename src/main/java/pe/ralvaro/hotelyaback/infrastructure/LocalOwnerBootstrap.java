@@ -1,10 +1,11 @@
-package pe.ralvaro.hotelyaback.security;
+package pe.ralvaro.hotelyaback.infrastructure;
+
+import pe.ralvaro.hotelyaback.application.auth.AuthService;
 import org.springframework.context.annotation.*;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.transaction.PlatformTransactionManager;
-import pe.ralvaro.hotelyaback.infrastructure.*;
 @Configuration @Profile("local")
 public class LocalOwnerBootstrap {
     @Bean ApplicationRunner bootstrapOwner(AuthService auth,LocalCatalogSeeder seed,HotelRepository hotels, PlatformTransactionManager manager,

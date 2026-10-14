@@ -1,4 +1,4 @@
-package pe.ralvaro.hotelyaback.security;
+package pe.ralvaro.hotelyaback.domain;
 import jakarta.persistence.*;
 import java.time.Instant;
 import java.util.UUID;

@@ -1,5 +1,13 @@
 package pe.ralvaro.hotelyaback.security;
 
+import pe.ralvaro.hotelyaback.application.auth.AuthService;
+import pe.ralvaro.hotelyaback.application.auth.AuthCredentials;
+import pe.ralvaro.hotelyaback.application.auth.AuthUser;
+import pe.ralvaro.hotelyaback.application.auth.JwtService;
+import pe.ralvaro.hotelyaback.application.auth.RefreshTokenService;
+import pe.ralvaro.hotelyaback.domain.OwnerAccount;
+import pe.ralvaro.hotelyaback.domain.OwnerSession;
+
 import pe.ralvaro.hotelyaback.infrastructure.OwnerAccountRepository;
 import pe.ralvaro.hotelyaback.infrastructure.OwnerSessionRepository;
 import java.util.Optional;
@@ -44,7 +52,7 @@ class AuthenticationTests {
     }
 
     @Test void normalizedLoginAuthenticatesWithBcryptAndIssuesJwtForPersistedSession() {
-        var tokens=auth.login(new AuthService.Credentials(" Owner@Example.com ","password123"));
+        var tokens=auth.login(new AuthCredentials(" Owner@Example.com ","password123"));
         var jwt=decoder.decode(tokens.accessToken());
         var session=ArgumentCaptor.forClass(OwnerSession.class);
         verify(sessions).save(session.capture());
@@ -56,7 +64,7 @@ class AuthenticationTests {
         assertEquals(session.getValue().id.toString(),jwt.getClaimAsString("sid"));
         assertEquals(Duration.ofMinutes(15),Duration.between(jwt.getIssuedAt(),jwt.getExpiresAt()));
         assertEquals(900,tokens.expiresIn());
-        assertEquals(new AuthService.User(42L,"owner@example.com"),tokens.user());
+        assertEquals(new AuthUser(42L,"owner@example.com"),tokens.user());
         assertTrue(tokens.refreshToken().startsWith(session.getValue().id+"."));
         assertEquals(tokens.refreshExpiresAt(),session.getValue().expiresAt);
         assertEquals(hash,accounts.findById(42L).orElseThrow().passwordHash);
@@ -84,7 +92,7 @@ class AuthenticationTests {
     }
 
     private void assertRejected(String email,String password) {
-        var error=assertThrows(ApiFailure.class,() -> auth.login(new AuthService.Credentials(email,password)));
+        var error=assertThrows(ApiFailure.class,() -> auth.login(new AuthCredentials(email,password)));
         assertEquals(401,error.status);
         assertEquals("Correo o contraseña incorrectos.",error.getMessage());
         verifyNoInteractions(sessions);

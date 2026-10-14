@@ -1,7 +1,7 @@
 package pe.ralvaro.hotelyaback.infrastructure;
 
 import org.springframework.data.jpa.repository.JpaRepository;
-import pe.ralvaro.hotelyaback.security.OwnerSession;
+import pe.ralvaro.hotelyaback.domain.OwnerSession;
 import java.util.UUID;
 import java.util.Optional;
 import jakarta.persistence.LockModeType;

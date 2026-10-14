@@ -194,3 +194,13 @@ Los controladores atienden HTTP; los servicios coordinan reglas de negocio, auto
 Los repositorios de hotel y sesión declaran las consultas con bloqueo pesimista utilizadas por edición, renovación y cierre de sesión. Los cambios sobre entidades cargadas se guardan al finalizar la transacción del servicio mediante el seguimiento de cambios de JPA; los `flush()` de repositorio conservan los puntos de sincronización requeridos por el flujo.
 
 `RefreshTokenService` encapsula la generación aleatoria, la rotación, el hash SHA-256, la comparación y la lectura del identificador de sesión del refresh token. `AuthService` coordina el ciclo de sesión, la persistencia mediante repositorios, la caducidad y la revocación por reutilización; `JwtService` emite los access tokens JWT.
+
+### Organización de autenticación
+
+- `application/auth`: `AuthService`, `JwtService`, `RefreshTokenService`, `SessionService` y los contratos internos `AuthCredentials`, `AuthUser` y `AuthTokens`.
+- `presentation/auth`: controller y DTO HTTP en `dto`; el controller convierte los contratos de aplicación a respuestas públicas y coloca el refresh token únicamente en la cookie HttpOnly.
+- `domain`: entidades JPA `OwnerAccount` y `OwnerSession`.
+- `security`: configuración, adaptación de usuarios a Spring Security y `SessionJwtValidator`. Este validador comprueba `sid` y delega en `SessionService.isSessionActive` para rechazar sesiones ausentes, revocadas, vencidas o de otro usuario.
+- `infrastructure`: repositorios y configuración de la cuenta local inicial.
+
+La comprobación de sesión conserva la revocación inmediata del access token tras logout o reutilización del refresh token y consulta PostgreSQL en cada autenticación con JWT.

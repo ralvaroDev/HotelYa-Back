@@ -1,10 +1,13 @@
-package pe.ralvaro.hotelyaback.security;
+package pe.ralvaro.hotelyaback.application.auth;
+
+import pe.ralvaro.hotelyaback.domain.OwnerAccount;
+import pe.ralvaro.hotelyaback.domain.OwnerSession;
+import pe.ralvaro.hotelyaback.security.OwnerPrincipal;
 
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import pe.ralvaro.hotelyaback.owner.ApiFailure;
@@ -44,7 +47,7 @@ public class AuthService {
         return accounts.findByEmail(email);
     }
 
-    public Tokens register(Credentials request) {
+    public AuthTokens register(AuthCredentials request) {
         String email = normalizedEmail(request.email());
         validatePassword(request.password());
         if (byEmail(email).isPresent())
@@ -59,7 +62,7 @@ public class AuthService {
             throw ApiFailure.field("password", "Usa al menos 8 caracteres y como máximo 72 bytes.");
     }
 
-    public Tokens login(Credentials request) {
+    public AuthTokens login(AuthCredentials request) {
         String email = normalizedEmail(request.email());
         final OwnerPrincipal principal;
         try {
@@ -72,23 +75,23 @@ public class AuthService {
         return newSession(accounts.findById(principal.ownerId()).orElseThrow(() -> new ApiFailure(401, "Inicia sesión para continuar.")));
     }
 
-    private Tokens newSession(OwnerAccount account) {
+    private AuthTokens newSession(OwnerAccount account) {
         var session = new OwnerSession(account.id);
         String token = refreshTokens.rotate(session);
         session = sessions.save(session);
         return tokens(account, session, token);
     }
 
-    private Tokens tokens(OwnerAccount account, OwnerSession session, String refresh) {
+    private AuthTokens tokens(OwnerAccount account, OwnerSession session, String refresh) {
         String access = jwtService.generateToken(account.id, session.id);
-        return new Tokens(access, JwtService.ACCESS_TOKEN_TTL.toSeconds(), new User(account.id, account.email), refresh, session.expiresAt);
+        return new AuthTokens(access, JwtService.ACCESS_TOKEN_TTL.toSeconds(), new AuthUser(account.id, account.email), refresh, session.expiresAt);
     }
 
     private OwnerSession cookieSession(String token) {
         return refreshTokens.sessionId(token).flatMap(sessions::findByIdForUpdate).orElse(null);
     }
 
-    public Tokens refresh(String token) {
+    public AuthTokens refresh(String token) {
         var session = cookieSession(token);
         if (session == null || session.revoked || !session.expiresAt.isAfter(Instant.now())) return null;
         if (!refreshTokens.matches(session, token)) {
@@ -105,20 +108,10 @@ public class AuthService {
     }
 
     @Transactional(readOnly = true)
-    public boolean active(Jwt jwt) {
-        try {
-            var s = sessions.findById(UUID.fromString(jwt.getClaimAsString("sid"))).orElse(null);
-            return s != null && !s.revoked && s.expiresAt.isAfter(Instant.now()) && s.ownerId.toString().equals(jwt.getSubject());
-        } catch (RuntimeException e) {
-            return false;
-        }
-    }
-
-    @Transactional(readOnly = true)
-    public User user(Long id) {
+    public AuthUser user(Long id) {
         var a = accounts.findById(id).orElse(null);
         if (a == null) throw new ApiFailure(401, "Inicia sesión para continuar.");
-        return new User(a.id, a.email);
+        return new AuthUser(a.id, a.email);
     }
 
     public OwnerAccount bootstrap(String email, String password) {
@@ -132,12 +125,4 @@ public class AuthService {
         });
     }
 
-    public record Credentials(String email, String password) {
-    }
-
-    public record User(Long id, String email) {
-    }
-
-    public record Tokens(String accessToken, long expiresIn, User user, String refreshToken, Instant refreshExpiresAt) {
-    }
 }

@@ -1,4 +1,6 @@
-package pe.ralvaro.hotelyaback.security;
+package pe.ralvaro.hotelyaback.application.auth;
+
+import pe.ralvaro.hotelyaback.domain.OwnerSession;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;

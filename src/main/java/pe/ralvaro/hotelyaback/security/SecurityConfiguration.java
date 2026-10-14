@@ -3,7 +3,6 @@ import java.nio.charset.StandardCharsets;
 import java.util.List;
 import javax.crypto.spec.SecretKeySpec;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.context.annotation.*;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -32,11 +31,10 @@ public class SecurityConfiguration {
         return new SecretKeySpec(secret.getBytes(StandardCharsets.UTF_8),"HmacSHA256");
     }
     @Bean JwtEncoder jwtEncoder(@Value("${owner.jwt.secret}") String secret) { return new NimbusJwtEncoder(new ImmutableSecret<>(key(secret))); }
-    @Bean JwtDecoder jwtDecoder(@Value("${owner.jwt.secret}") String secret,ObjectProvider<AuthService> auth) {
+    @Bean JwtDecoder jwtDecoder(@Value("${owner.jwt.secret}") String secret,SessionJwtValidator sessionValidator) {
         var decoder=NimbusJwtDecoder.withSecretKey(key(secret)).macAlgorithm(MacAlgorithm.HS256).build();
         OAuth2TokenValidator<Jwt> audience=jwt -> jwt.getAudience().contains("hotelya-owner") ? OAuth2TokenValidatorResult.success() : invalid();
-        OAuth2TokenValidator<Jwt> session=jwt -> auth.getObject().active(jwt) ? OAuth2TokenValidatorResult.success() : invalid();
-        decoder.setJwtValidator(new DelegatingOAuth2TokenValidator<>(JwtValidators.createDefaultWithIssuer("hotelya"),audience,session));
+        decoder.setJwtValidator(new DelegatingOAuth2TokenValidator<>(JwtValidators.createDefaultWithIssuer("hotelya"),audience,sessionValidator));
         return decoder;
     }
     private static OAuth2TokenValidatorResult invalid() { return OAuth2TokenValidatorResult.failure(new OAuth2Error("invalid_token","Sesión no válida.",null)); }

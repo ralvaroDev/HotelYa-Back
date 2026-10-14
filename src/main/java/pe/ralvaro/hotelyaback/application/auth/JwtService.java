@@ -1,4 +1,4 @@
-package pe.ralvaro.hotelyaback.security;
+package pe.ralvaro.hotelyaback.application.auth;
 
 import java.time.Duration;
 import java.time.Instant;
