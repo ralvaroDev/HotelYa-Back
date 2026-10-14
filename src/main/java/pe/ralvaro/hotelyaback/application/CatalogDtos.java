@@ -11,7 +11,7 @@ public final class CatalogDtos {
     public record HotelSummary(Long id, String name, String description, String location, String logoPath) {}
     public record HotelDetail(Long id, String name, String description, String address, String location,
             String phone, String logoPath, String facadePath, String videoPath, BigDecimal latitude,
-            BigDecimal longitude, String whatsapp, String openingHours, String checkInOutConditions,
+            BigDecimal longitude, String openingHours, String checkInOutConditions,
             Boolean hasParking, String mapUrl, LocalTime openingTime, LocalTime closingTime, List<RoomTypeDetail> roomTypes, List<StayCardInfo> stayCards) {}
     public record RoomTypeDetail(Long id, String code, String name, String description,
             List<Photo> photos, List<Detail> details, List<RateInfo> rates, Integer totalUnits, Integer availableUnits) {}

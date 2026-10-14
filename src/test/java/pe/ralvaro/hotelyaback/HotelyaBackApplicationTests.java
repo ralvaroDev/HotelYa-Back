@@ -71,7 +71,8 @@ class HotelyaBackApplicationTests {
             .andExpect(jsonPath("$.roomTypes[0].rates[1].additionalHourAmount").value(20.0))
             .andExpect(jsonPath("$.roomTypes[0].rates[2].simulated").value(true))
             .andExpect(jsonPath("$.hasParking").value(org.hamcrest.Matchers.nullValue()))
-            .andExpect(jsonPath("$.whatsapp").value(org.hamcrest.Matchers.nullValue()))
+            .andExpect(jsonPath("$.phone").value("+5117557324"))
+            .andExpect(jsonPath("$.whatsapp").doesNotExist())
             .andExpect(jsonPath("$.rating").doesNotExist())
             .andExpect(jsonPath("$.availability").doesNotExist());
     }

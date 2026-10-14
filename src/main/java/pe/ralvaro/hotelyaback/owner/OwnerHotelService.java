@@ -17,7 +17,7 @@ public class OwnerHotelService {
     public OwnerHotelService(HotelRepository hotels,RoomTypeRepository rooms,CatalogService catalog) { this.hotels=hotels; this.rooms=rooms; this.catalog=catalog; }
     public record OwnerHotel(HotelDetail detail,boolean published) {}
     public record HotelWrite(String name,String description,String address,String location,String phone,String logoPath,String facadePath,String videoPath,
-        BigDecimal latitude,BigDecimal longitude,String whatsapp,String openingHours,String checkInOutConditions,Boolean hasParking,String mapUrl,LocalTime openingTime,LocalTime closingTime) {}
+        BigDecimal latitude,BigDecimal longitude,String openingHours,String checkInOutConditions,Boolean hasParking,String mapUrl,LocalTime openingTime,LocalTime closingTime) {}
     public record RoomPhotoWrite(String path) {}
     public record RoomRateWrite(RateMode mode,BigDecimal amount,Integer packageHours,String currency) {}
     public record RoomWrite(String name,String description,Integer displayOrder,Integer totalUnits,Integer availableUnits,String photoScope,List<RoomPhotoWrite> photos,List<Detail> details,List<RoomRateWrite> rates) {}
@@ -34,13 +34,13 @@ public class OwnerHotelService {
     public OwnerHotel update(Long owner,HotelWrite request) { var h=owned(owner,true); updateHotel(h,request); entities.flush(); return read(owner); }
     private void updateHotel(Hotel h,HotelWrite r) {
         String name=text(r.name(),"name",200,true), description=text(r.description(),"description",10000,true), address=text(r.address(),"address",500,true), location=text(r.location(),"location",200,true);
-        String phone=phone(r.phone(),"phone"), whatsapp=phone(r.whatsapp(),"whatsapp");
+        String phone=phone(r.phone(),"phone");
         String mapUrl=mapUrl(r.mapUrl());
         if ((r.openingTime()==null)!=(r.closingTime()==null)) throw ApiFailure.field(r.openingTime()==null ? "openingTime" : "closingTime","Completa las horas de apertura y cierre.");
         coordinate(r.latitude(),"latitude",90); coordinate(r.longitude(),"longitude",180);
         if ((r.latitude()==null)!=(r.longitude()==null)) throw ApiFailure.field("latitude","Completa ambas coordenadas o deja ambas vacías.");
         mediaPath(h,r.logoPath(),"logoPath",false); mediaPath(h,r.facadePath(),"facadePath",false); mediaPath(h,r.videoPath(),"videoPath",true);
-        h.update(name,description,address,location,phone,r.logoPath(),r.facadePath(),r.videoPath(),r.latitude(),r.longitude(),whatsapp,
+        h.update(name,description,address,location,phone,r.logoPath(),r.facadePath(),r.videoPath(),r.latitude(),r.longitude(),
             text(r.openingHours(),"openingHours",5000,false),text(r.checkInOutConditions(),"checkInOutConditions",5000,false),r.hasParking());
         h.updateLocationAndHours(mapUrl,r.openingTime(),r.closingTime());
     }
@@ -146,7 +146,7 @@ public class OwnerHotelService {
         if(value==null || value.trim().isEmpty()) { if(required) throw ApiFailure.field(field,"Este campo es obligatorio."); return null; }
         String result=value.trim(); if(result.length()>max) throw ApiFailure.field(field,"Máximo "+max+" caracteres."); return result;
     }
-    private static String phone(String value,String field) { String result=text(value,field,40,false); if(result!=null && !result.matches("\\+[0-9]{7,15}")) throw ApiFailure.field(field,"Usa formato internacional, por ejemplo +51987654321."); return result; }
+    private static String phone(String value,String field) { String result=text(value,field,40,false); if(result!=null && !result.matches("\\+51[0-9]{9}")) throw ApiFailure.field(field,"Usa +51 seguido de exactamente 9 dígitos, sin letras ni espacios."); return result; }
     private static void coordinate(BigDecimal value,String field,int bound) { if(value!=null && (value.abs().compareTo(BigDecimal.valueOf(bound))>0 || value.scale()>6)) throw ApiFailure.field(field,"Coordenada fuera de rango o con más de seis decimales."); }
     private static <T> List<T> list(List<T> value,String field,int max) { if(value==null) return List.of(); if(value.size()>max) throw ApiFailure.field(field,"Máximo "+max+" elementos."); return value; }
 }
