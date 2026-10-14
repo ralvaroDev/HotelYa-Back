@@ -40,3 +40,5 @@ out/
 .env.local
 local.properties
 .DS_Store
+
+.uploads/
