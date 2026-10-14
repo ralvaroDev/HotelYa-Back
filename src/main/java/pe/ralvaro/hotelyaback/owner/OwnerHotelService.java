@@ -38,6 +38,42 @@ public class OwnerHotelService {
             text(r.openingHours(),"openingHours",5000,false),text(r.checkInOutConditions(),"checkInOutConditions",5000,false),r.hasParking());
     }
     public OwnerHotel publication(Long owner,boolean publish) { var h=owned(owner,true); if(publish) validatePublication(h); h.setPublished(publish); entities.flush(); return read(owner); }
+    public OwnerHotel saveRoom(Long owner,Long id,RoomWrite r) {
+        var h=owned(owner,true);
+        RoomType type=id==null ? new RoomType(h,"room-"+UUID.randomUUID(),"","",0) : room(h,id);
+        if(r.displayOrder()==null || r.displayOrder()<0) throw ApiFailure.field("displayOrder","El orden debe ser un entero no negativo.");
+        if(r.totalUnits()==null || r.availableUnits()==null || r.totalUnits()<0 || r.availableUnits()<0 || r.availableUnits()>r.totalUnits()) throw ApiFailure.field("availableUnits","Completa cantidades enteras: disponibles entre cero y la cantidad total.");
+        var photos=list(r.photos(),"photos",50); var details=list(r.details(),"details",100); var rates=list(r.rates(),"rates",50);
+        for(int i=0;i<photos.size();i++) { var p=photos.get(i); if(p==null || p.path()==null) throw ApiFailure.field("photos."+i+".path","Selecciona una fotografía."); mediaPath(h,p.path(),"photos."+i+".path",false); text(p.altText(),"photos."+i+".altText",300,true); }
+        for(int i=0;i<details.size();i++) { var d=details.get(i); if(d==null || d.kind()==null) throw ApiFailure.field("details."+i+".kind","Selecciona una categoría."); text(d.text(),"details."+i+".text",5000,true); }
+        Set<String> combinations=new HashSet<>();
+        for(int i=0;i<rates.size();i++) {
+            var rate=rates.get(i); String key="rates."+i;
+            if(rate==null || rate.mode()==null) throw ApiFailure.field(key+".mode","Selecciona una modalidad.");
+            if(rate.amount()==null || rate.amount().signum()<=0 || rate.amount().scale()>2 || rate.amount().precision()-rate.amount().scale()>10) throw ApiFailure.field(key+".amount","Introduce un importe positivo con hasta dos decimales.");
+            if(rate.currency()==null || !rate.currency().matches("[A-Z]{3}")) throw ApiFailure.field(key+".currency","Usa un código de moneda de tres letras, por ejemplo PEN.");
+            if(rate.mode()==RateMode.PACKAGE) {
+                if(rate.packageHours()==null || rate.packageHours()<=0) throw ApiFailure.field(key+".packageHours","Introduce una duración positiva en horas.");
+                if(rate.additionalHourAmount()==null || rate.additionalHourAmount().signum()<0 || rate.additionalHourAmount().scale()>2 || rate.additionalHourAmount().precision()-rate.additionalHourAmount().scale()>10) throw ApiFailure.field(key+".additionalHourAmount","Introduce el importe de la hora adicional, cero o mayor.");
+            } else if(rate.packageHours()!=null || rate.additionalHourAmount()!=null) throw ApiFailure.field(key+".mode","La duración y hora adicional corresponden solo a paquetes.");
+            if(!combinations.add(rate.mode()+":"+rate.packageHours())) throw ApiFailure.field(key+".mode","Esta modalidad y duración ya tienen una tarifa.");
+        }
+        type.update(text(r.name(),"name",200,true),text(r.description(),"description",10000,true),r.displayOrder(),r.totalUnits(),r.availableUnits());
+        if(id==null) entities.persist(type);
+        for(var p:new ArrayList<>(type.getPhotos())) entities.remove(p);
+        for(var d:new ArrayList<>(type.getDetails())) entities.remove(d);
+        for(var rate:new ArrayList<>(type.getRates())) entities.remove(rate);
+        type.getPhotos().clear(); type.getDetails().clear(); type.getRates().clear();
+        for(int i=0;i<photos.size();i++) { var p=photos.get(i); var entity=new RoomPhoto(type,p.path(),p.altText().trim(),i); entities.persist(entity); type.getPhotos().add(entity); }
+        for(int i=0;i<details.size();i++) { var d=details.get(i); var entity=new RoomDetail(type,d.kind(),d.text().trim(),i); entities.persist(entity); type.getDetails().add(entity); }
+        for(var rate:rates) { var entity=new Rate(type,rate.mode(),rate.amount(),rate.currency(),rate.packageHours(),rate.additionalHourAmount(),rate.simulated()); entities.persist(entity); type.getRates().add(entity); }
+        entities.flush(); enforcePublished(h); return read(owner);
+    }
+    public OwnerHotel deleteRoom(Long owner,Long id) {
+        var h=owned(owner,true); var type=room(h,id);
+        type.getPhotos().forEach(entities::remove); type.getDetails().forEach(entities::remove); type.getRates().forEach(entities::remove);
+        entities.remove(type); entities.flush(); enforcePublished(h); return read(owner);
+    }
     private RoomType room(Hotel h,Long id) { var r=entities.find(RoomType.class,id); if(r==null || !r.getHotel().getId().equals(h.getId())) throw new ApiFailure(404,"Tipo de habitación no encontrado."); return r; }
     public boolean referenced(Hotel h,String path) {
         if(path.equals(h.getLogoPath()) || path.equals(h.getFacadePath()) || path.equals(h.getVideoPath())) return true;

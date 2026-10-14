@@ -16,4 +16,7 @@ public class OwnerHotelController {
     @PutMapping public OwnerHotel update(@AuthenticationPrincipal Jwt jwt,@RequestBody HotelWrite request) { return service.update(owner(jwt),request); }
     @PutMapping("/publication") public OwnerHotel publication(@AuthenticationPrincipal Jwt jwt,@RequestBody Publication request) { return service.publication(owner(jwt),request.published()); }
     public record Publication(boolean published) {}
+    @PostMapping("/room-types") @ResponseStatus(HttpStatus.CREATED) public OwnerHotel add(@AuthenticationPrincipal Jwt jwt,@RequestBody RoomWrite request) { return service.saveRoom(owner(jwt),null,request); }
+    @PutMapping("/room-types/{id}") public OwnerHotel updateRoom(@AuthenticationPrincipal Jwt jwt,@PathVariable Long id,@RequestBody RoomWrite request) { return service.saveRoom(owner(jwt),id,request); }
+    @DeleteMapping("/room-types/{id}") public OwnerHotel deleteRoom(@AuthenticationPrincipal Jwt jwt,@PathVariable Long id) { return service.deleteRoom(owner(jwt),id); }
 }
