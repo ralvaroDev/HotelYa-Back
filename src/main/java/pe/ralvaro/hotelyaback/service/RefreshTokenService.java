@@ -8,6 +8,7 @@ import java.util.Base64;
 import java.util.HexFormat;
 import java.util.Optional;
 import java.util.UUID;
+
 import org.springframework.stereotype.Service;
 import pe.ralvaro.hotelyaback.model.OwnerSession;
 
@@ -26,7 +27,7 @@ public class RefreshTokenService {
     public boolean matches(OwnerSession session, String token) {
         if (token == null || session.refreshHash == null) return false;
         return MessageDigest.isEqual(session.refreshHash.getBytes(StandardCharsets.US_ASCII),
-            hash(token).getBytes(StandardCharsets.US_ASCII));
+                hash(token).getBytes(StandardCharsets.US_ASCII));
     }
 
     public Optional<UUID> sessionId(String token) {
@@ -41,7 +42,7 @@ public class RefreshTokenService {
     private static String hash(String token) {
         try {
             return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
-                .digest(token.getBytes(StandardCharsets.UTF_8)));
+                    .digest(token.getBytes(StandardCharsets.UTF_8)));
         } catch (NoSuchAlgorithmException e) {
             throw new IllegalStateException(e);
         }

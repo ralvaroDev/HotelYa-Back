@@ -1,6 +1,7 @@
 package pe.ralvaro.hotelyaback.security;
 
 import java.util.UUID;
+
 import org.springframework.security.oauth2.core.OAuth2Error;
 import org.springframework.security.oauth2.core.OAuth2TokenValidator;
 import org.springframework.security.oauth2.core.OAuth2TokenValidatorResult;
@@ -12,7 +13,9 @@ import pe.ralvaro.hotelyaback.service.SessionService;
 public class SessionJwtValidator implements OAuth2TokenValidator<Jwt> {
     private final SessionService sessions;
 
-    public SessionJwtValidator(SessionService sessions) { this.sessions = sessions; }
+    public SessionJwtValidator(SessionService sessions) {
+        this.sessions = sessions;
+    }
 
     @Override
     public OAuth2TokenValidatorResult validate(Jwt jwt) {

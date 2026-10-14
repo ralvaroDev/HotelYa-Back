@@ -3,11 +3,13 @@ package pe.ralvaro.hotelyaback.security;
 import java.time.Instant;
 import java.util.Optional;
 import java.util.UUID;
+
 import org.junit.jupiter.api.Test;
 import org.springframework.security.oauth2.jwt.Jwt;
 import pe.ralvaro.hotelyaback.model.OwnerSession;
 import pe.ralvaro.hotelyaback.repository.OwnerSessionRepository;
 import pe.ralvaro.hotelyaback.service.SessionService;
+
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
@@ -22,13 +24,15 @@ class SessionJwtValidatorTests {
         return builder.build();
     }
 
-    @Test void acceptsAnActiveSessionOfTheTokenOwner() {
+    @Test
+    void acceptsAnActiveSessionOfTheTokenOwner() {
         var session = new OwnerSession(42L);
         when(sessions.findById(session.id)).thenReturn(Optional.of(session));
         assertFalse(validator.validate(token(session.id.toString(), "42")).hasErrors());
     }
 
-    @Test void rejectsAbsentRevokedExpiredAndOtherOwnersSessions() {
+    @Test
+    void rejectsAbsentRevokedExpiredAndOtherOwnersSessions() {
         var session = new OwnerSession(42L);
         var jwt = token(session.id.toString(), "42");
         when(sessions.findById(session.id)).thenReturn(Optional.empty());
@@ -44,13 +48,15 @@ class SessionJwtValidatorTests {
         assertTrue(validator.validate(token(session.id.toString(), null)).hasErrors());
     }
 
-    @Test void rejectsMissingOrMalformedSessionIdsBeforeAccessingTheRepository() {
+    @Test
+    void rejectsMissingOrMalformedSessionIdsBeforeAccessingTheRepository() {
         assertTrue(validator.validate(token(null, "42")).hasErrors());
         assertTrue(validator.validate(token("malformed", "42")).hasErrors());
         verifyNoInteractions(sessions);
     }
 
-    @Test void deniesAuthenticationWhenTheSessionStoreIsUnavailable() {
+    @Test
+    void deniesAuthenticationWhenTheSessionStoreIsUnavailable() {
         var id = UUID.randomUUID();
         when(sessions.findById(id)).thenThrow(new IllegalStateException("Session store unavailable"));
         var result = validator.validate(token(id.toString(), "42"));

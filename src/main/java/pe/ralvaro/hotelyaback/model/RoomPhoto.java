@@ -18,7 +18,8 @@ public class RoomPhoto {
     @Column(name = "display_order", nullable = false)
     private int displayOrder;
 
-    protected RoomPhoto() {}
+    protected RoomPhoto() {
+    }
 
     public RoomPhoto(RoomType roomType, String path, String altText, int displayOrder) {
         this.roomType = roomType;
@@ -27,9 +28,23 @@ public class RoomPhoto {
         this.displayOrder = displayOrder;
     }
 
-    public Long getId() { return id; }
-    public RoomType getRoomType() { return roomType; }
-    public String getPath() { return path; }
-    public String getAltText() { return altText; }
-    public int getDisplayOrder() { return displayOrder; }
+    public Long getId() {
+        return id;
+    }
+
+    public RoomType getRoomType() {
+        return roomType;
+    }
+
+    public String getPath() {
+        return path;
+    }
+
+    public String getAltText() {
+        return altText;
+    }
+
+    public int getDisplayOrder() {
+        return displayOrder;
+    }
 }

@@ -1,8 +1,10 @@
 package pe.ralvaro.hotelyaback.model;
 
 import jakarta.persistence.*;
+
 import java.util.ArrayList;
 import java.util.List;
+
 import org.hibernate.annotations.BatchSize;
 
 @Entity
@@ -35,15 +37,29 @@ public class RoomType {
     @OrderBy("id ASC")
     private List<Rate> rates = new ArrayList<>();
 
-    @Column(name = "total_units") private Integer totalUnits;
-    @Column(name = "available_units") private Integer availableUnits;
-    public Integer getTotalUnits() { return totalUnits; }
-    public Integer getAvailableUnits() { return availableUnits; }
-    public void update(String name, String description, int order, Integer total, Integer available) {
-        this.name = name; this.description = description; this.displayOrder = order;
-        this.totalUnits = total; this.availableUnits = available;
+    @Column(name = "total_units")
+    private Integer totalUnits;
+    @Column(name = "available_units")
+    private Integer availableUnits;
+
+    public Integer getTotalUnits() {
+        return totalUnits;
     }
-    protected RoomType() {}
+
+    public Integer getAvailableUnits() {
+        return availableUnits;
+    }
+
+    public void update(String name, String description, int order, Integer total, Integer available) {
+        this.name = name;
+        this.description = description;
+        this.displayOrder = order;
+        this.totalUnits = total;
+        this.availableUnits = available;
+    }
+
+    protected RoomType() {
+    }
 
     public RoomType(Hotel hotel, String code, String name, String description, int displayOrder) {
         this.hotel = hotel;
@@ -53,13 +69,39 @@ public class RoomType {
         this.displayOrder = displayOrder;
     }
 
-    public Long getId() { return id; }
-    public Hotel getHotel() { return hotel; }
-    public String getCode() { return code; }
-    public String getName() { return name; }
-    public String getDescription() { return description; }
-    public int getDisplayOrder() { return displayOrder; }
-    public List<RoomPhoto> getPhotos() { return photos; }
-    public List<RoomDetail> getDetails() { return details; }
-    public List<Rate> getRates() { return rates; }
+    public Long getId() {
+        return id;
+    }
+
+    public Hotel getHotel() {
+        return hotel;
+    }
+
+    public String getCode() {
+        return code;
+    }
+
+    public String getName() {
+        return name;
+    }
+
+    public String getDescription() {
+        return description;
+    }
+
+    public int getDisplayOrder() {
+        return displayOrder;
+    }
+
+    public List<RoomPhoto> getPhotos() {
+        return photos;
+    }
+
+    public List<RoomDetail> getDetails() {
+        return details;
+    }
+
+    public List<Rate> getRates() {
+        return rates;
+    }
 }

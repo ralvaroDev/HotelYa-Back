@@ -220,3 +220,12 @@ La **vista** corresponde a `HotelYa-Front`, que presenta la interfaz y consume l
 Los DTO se declaran fuera de controllers y servicios. El controller de autenticación convierte `AuthTokens` y `AuthUser` a respuestas públicas y entrega el refresh token únicamente en la cookie HttpOnly. `SessionJwtValidator` delega en `SessionService.isSessionActive` para rechazar sesiones ausentes, revocadas, vencidas o de otro usuario.
 
 La comprobación de sesión conserva la revocación inmediata del access token tras logout o reutilización del refresh token y consulta PostgreSQL en cada autenticación con JWT.
+
+## Formato del código
+
+```bash
+./scripts/format-code.sh
+./scripts/format-code.sh --check
+```
+
+Usa el formateador oficial de IntelliJ IDEA con el esquema `Default` guardado en `config/intellij-code-style.xml`, en una instancia temporal que no interfiere con el IDE abierto. Si IntelliJ está en otra ubicación, definir `HOTELYA_IDEA_HOME`. Formatea todo el código Java y Gradle del backend; excluye migraciones SQL para conservar sus checksums de Flyway. No modifica el frontend, que es un proyecto independiente.

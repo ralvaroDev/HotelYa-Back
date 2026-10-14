@@ -1,3 +1,4 @@
 package pe.ralvaro.hotelyaback.dto.auth;
 
-public record AuthCredentials(String email, String password) {}
+public record AuthCredentials(String email, String password) {
+}

@@ -19,7 +19,8 @@ public class RoomDetail {
     @Column(name = "display_order", nullable = false)
     private int displayOrder;
 
-    protected RoomDetail() {}
+    protected RoomDetail() {
+    }
 
     public RoomDetail(RoomType roomType, DetailKind kind, String text, int displayOrder) {
         this.roomType = roomType;
@@ -28,9 +29,23 @@ public class RoomDetail {
         this.displayOrder = displayOrder;
     }
 
-    public Long getId() { return id; }
-    public RoomType getRoomType() { return roomType; }
-    public DetailKind getKind() { return kind; }
-    public String getText() { return text; }
-    public int getDisplayOrder() { return displayOrder; }
+    public Long getId() {
+        return id;
+    }
+
+    public RoomType getRoomType() {
+        return roomType;
+    }
+
+    public DetailKind getKind() {
+        return kind;
+    }
+
+    public String getText() {
+        return text;
+    }
+
+    public int getDisplayOrder() {
+        return displayOrder;
+    }
 }

@@ -7,16 +7,18 @@ import org.springframework.transaction.annotation.Transactional;
 import pe.ralvaro.hotelyaback.repository.OwnerAccountRepository;
 
 @Service
-@Transactional(readOnly=true)
+@Transactional(readOnly = true)
 public class OwnerUserDetailsService implements UserDetailsService {
     private final OwnerAccountRepository accounts;
 
-    public OwnerUserDetailsService(OwnerAccountRepository accounts) { this.accounts=accounts; }
+    public OwnerUserDetailsService(OwnerAccountRepository accounts) {
+        this.accounts = accounts;
+    }
 
     @Override
     public OwnerPrincipal loadUserByUsername(String email) {
-        var account=accounts.findByEmail(email)
-            .orElseThrow(() -> new UsernameNotFoundException("Correo o contraseña incorrectos."));
-        return new OwnerPrincipal(account.id,account.email,account.passwordHash);
+        var account = accounts.findByEmail(email)
+                .orElseThrow(() -> new UsernameNotFoundException("Correo o contraseña incorrectos."));
+        return new OwnerPrincipal(account.id, account.email, account.passwordHash);
     }
 }

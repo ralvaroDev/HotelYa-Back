@@ -1,9 +1,11 @@
 package pe.ralvaro.hotelyaback.controller;
 
 import jakarta.servlet.http.HttpServletResponse;
+
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Map;
+
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseCookie;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -49,7 +51,7 @@ public class AuthController {
 
     @PostMapping("/refresh")
     public AuthResponse refresh(@CookieValue(name = "HOTELYA_REFRESH", required = false) String cookie,
-            HttpServletResponse response) {
+                                HttpServletResponse response) {
         var tokens = auth.refresh(cookie);
         if (tokens == null) {
             clear(response);
@@ -60,7 +62,7 @@ public class AuthController {
 
     @PostMapping("/logout")
     public void logout(@CookieValue(name = "HOTELYA_REFRESH", required = false) String cookie,
-            HttpServletResponse response) {
+                       HttpServletResponse response) {
         auth.logout(cookie);
         clear(response);
         response.setStatus(204);
@@ -75,7 +77,7 @@ public class AuthController {
     private AuthResponse send(AuthTokens tokens, HttpServletResponse response) {
         response.setHeader("Cache-Control", "no-store");
         response.addHeader("Set-Cookie", cookie(tokens.refreshToken())
-            .maxAge(Duration.between(Instant.now(), tokens.refreshExpiresAt())).build().toString());
+                .maxAge(Duration.between(Instant.now(), tokens.refreshExpiresAt())).build().toString());
         return new AuthResponse(tokens.accessToken(), tokens.expiresIn(), userResponse(tokens.user()));
     }
 
@@ -85,7 +87,7 @@ public class AuthController {
 
     private ResponseCookie.ResponseCookieBuilder cookie(String value) {
         return ResponseCookie.from("HOTELYA_REFRESH", value).httpOnly(true).secure(secure)
-            .sameSite(secure ? "None" : "Lax").path("/api/auth");
+                .sameSite(secure ? "None" : "Lax").path("/api/auth");
     }
 
     private void clear(HttpServletResponse response) {

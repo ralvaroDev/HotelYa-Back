@@ -2,6 +2,7 @@ package pe.ralvaro.hotelyaback.service;
 
 import java.time.Instant;
 import java.util.UUID;
+
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import pe.ralvaro.hotelyaback.repository.OwnerSessionRepository;
@@ -11,12 +12,14 @@ import pe.ralvaro.hotelyaback.repository.OwnerSessionRepository;
 public class SessionService {
     private final OwnerSessionRepository sessions;
 
-    public SessionService(OwnerSessionRepository sessions) { this.sessions = sessions; }
+    public SessionService(OwnerSessionRepository sessions) {
+        this.sessions = sessions;
+    }
 
     public boolean isSessionActive(UUID sessionId, String ownerSubject) {
         return sessions.findById(sessionId)
-            .filter(session -> !session.revoked && session.expiresAt.isAfter(Instant.now())
-                && session.ownerId.toString().equals(ownerSubject))
-            .isPresent();
+                .filter(session -> !session.revoked && session.expiresAt.isAfter(Instant.now())
+                        && session.ownerId.toString().equals(ownerSubject))
+                .isPresent();
     }
 }

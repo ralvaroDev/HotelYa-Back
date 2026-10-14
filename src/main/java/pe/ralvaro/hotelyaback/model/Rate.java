@@ -1,6 +1,7 @@
 package pe.ralvaro.hotelyaback.model;
 
 import jakarta.persistence.*;
+
 import java.math.BigDecimal;
 
 @Entity
@@ -26,7 +27,8 @@ public class Rate {
     @Column(name = "simulated", nullable = false)
     private boolean simulated;
 
-    protected Rate() {}
+    protected Rate() {
+    }
 
     public Rate(RoomType roomType, RateMode mode, BigDecimal amount, String currency, Integer packageHours, BigDecimal additionalHourAmount, boolean simulated) {
         this.roomType = roomType;
@@ -38,12 +40,35 @@ public class Rate {
         this.simulated = simulated;
     }
 
-    public Long getId() { return id; }
-    public RoomType getRoomType() { return roomType; }
-    public RateMode getMode() { return mode; }
-    public BigDecimal getAmount() { return amount; }
-    public String getCurrency() { return currency; }
-    public Integer getPackageHours() { return packageHours; }
-    public BigDecimal getAdditionalHourAmount() { return additionalHourAmount; }
-    public boolean getSimulated() { return simulated; }
+    public Long getId() {
+        return id;
+    }
+
+    public RoomType getRoomType() {
+        return roomType;
+    }
+
+    public RateMode getMode() {
+        return mode;
+    }
+
+    public BigDecimal getAmount() {
+        return amount;
+    }
+
+    public String getCurrency() {
+        return currency;
+    }
+
+    public Integer getPackageHours() {
+        return packageHours;
+    }
+
+    public BigDecimal getAdditionalHourAmount() {
+        return additionalHourAmount;
+    }
+
+    public boolean getSimulated() {
+        return simulated;
+    }
 }

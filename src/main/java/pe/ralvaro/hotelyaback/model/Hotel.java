@@ -1,6 +1,7 @@
 package pe.ralvaro.hotelyaback.model;
 
 import jakarta.persistence.*;
+
 import java.math.BigDecimal;
 import java.time.LocalTime;
 
@@ -45,31 +46,68 @@ public class Hotel {
     private LocalTime openingTime;
     @Column(name = "closing_time")
     private LocalTime closingTime;
-    public String getMapUrl() { return mapUrl; }
-    public LocalTime getOpeningTime() { return openingTime; }
-    public LocalTime getClosingTime() { return closingTime; }
+
+    public String getMapUrl() {
+        return mapUrl;
+    }
+
+    public LocalTime getOpeningTime() {
+        return openingTime;
+    }
+
+    public LocalTime getClosingTime() {
+        return closingTime;
+    }
+
     public void updateLocationAndHours(String url, LocalTime start, LocalTime end) {
-        mapUrl = url; openingTime = start; closingTime = end;
-        if (start != null) openingHours = start.equals(end) ? "24 horas" : start + " – " + end + (end.isBefore(start) ? " (día siguiente)" : "");
+        mapUrl = url;
+        openingTime = start;
+        closingTime = end;
+        if (start != null)
+            openingHours = start.equals(end) ? "24 horas" : start + " – " + end + (end.isBefore(start) ? " (día siguiente)" : "");
     }
 
     @Column(name = "owner_id", unique = true)
     private Long ownerId;
     @Column(nullable = false)
     private boolean published = true;
-    public Long getOwnerId() { return ownerId; }
-    public boolean isPublished() { return published; }
-    public void assignOwner(Long id) { ownerId = id; }
-    public void setPublished(boolean value) { published = value; }
-    public void update(String name, String description, String address, String location, String phone,
-            String logo, String facade, String video, BigDecimal lat, BigDecimal lng,
-            String hours, String conditions, Boolean parking) {
-        this.name = name; this.description = description; this.address = address; this.location = location;
-        this.phone = phone; this.logoPath = logo; this.facadePath = facade; this.videoPath = video;
-        this.latitude = lat; this.longitude = lng; this.openingHours = hours;
-        this.checkInOutConditions = conditions; this.hasParking = parking;
+
+    public Long getOwnerId() {
+        return ownerId;
     }
-    protected Hotel() {}
+
+    public boolean isPublished() {
+        return published;
+    }
+
+    public void assignOwner(Long id) {
+        ownerId = id;
+    }
+
+    public void setPublished(boolean value) {
+        published = value;
+    }
+
+    public void update(String name, String description, String address, String location, String phone,
+                       String logo, String facade, String video, BigDecimal lat, BigDecimal lng,
+                       String hours, String conditions, Boolean parking) {
+        this.name = name;
+        this.description = description;
+        this.address = address;
+        this.location = location;
+        this.phone = phone;
+        this.logoPath = logo;
+        this.facadePath = facade;
+        this.videoPath = video;
+        this.latitude = lat;
+        this.longitude = lng;
+        this.openingHours = hours;
+        this.checkInOutConditions = conditions;
+        this.hasParking = parking;
+    }
+
+    protected Hotel() {
+    }
 
     public Hotel(String code, String name, String description, String address, String location, String phone, String logoPath, String facadePath, String videoPath) {
         this.code = code;
@@ -83,19 +121,63 @@ public class Hotel {
         this.videoPath = videoPath;
     }
 
-    public Long getId() { return id; }
-    public String getCode() { return code; }
-    public String getName() { return name; }
-    public String getDescription() { return description; }
-    public String getAddress() { return address; }
-    public String getLocation() { return location; }
-    public String getPhone() { return phone; }
-    public String getLogoPath() { return logoPath; }
-    public String getFacadePath() { return facadePath; }
-    public String getVideoPath() { return videoPath; }
-    public BigDecimal getLatitude() { return latitude; }
-    public BigDecimal getLongitude() { return longitude; }
-    public String getOpeningHours() { return openingHours; }
-    public String getCheckInOutConditions() { return checkInOutConditions; }
-    public Boolean getHasParking() { return hasParking; }
+    public Long getId() {
+        return id;
+    }
+
+    public String getCode() {
+        return code;
+    }
+
+    public String getName() {
+        return name;
+    }
+
+    public String getDescription() {
+        return description;
+    }
+
+    public String getAddress() {
+        return address;
+    }
+
+    public String getLocation() {
+        return location;
+    }
+
+    public String getPhone() {
+        return phone;
+    }
+
+    public String getLogoPath() {
+        return logoPath;
+    }
+
+    public String getFacadePath() {
+        return facadePath;
+    }
+
+    public String getVideoPath() {
+        return videoPath;
+    }
+
+    public BigDecimal getLatitude() {
+        return latitude;
+    }
+
+    public BigDecimal getLongitude() {
+        return longitude;
+    }
+
+    public String getOpeningHours() {
+        return openingHours;
+    }
+
+    public String getCheckInOutConditions() {
+        return checkInOutConditions;
+    }
+
+    public Boolean getHasParking() {
+        return hasParking;
+    }
 }
