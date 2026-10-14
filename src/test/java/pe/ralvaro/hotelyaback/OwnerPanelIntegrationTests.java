@@ -116,6 +116,21 @@ class OwnerPanelIntegrationTests {
         mvc.perform(delete("/api/owner/media/"+mediaId).header("Authorization","Bearer "+s.token())).andExpect(status().isNoContent());
         assertFalse(Files.exists(Path.of(System.getProperty("java.io.tmpdir"),"hotelya-owner-test-uploads",mediaId)));
     }
+    @Test void legacyPublishedHotelCanSaveInformationAndConfigureRoomsProgressively() throws Exception {
+        var s=register("legacy@example.com"); hotel(s);
+        String path=JsonPath.read(upload(s).getResponse().getContentAsString(),"$.path");
+        for(int i=0;i<3;i++) mvc.perform(post("/api/owner/hotel/room-types").header("Authorization","Bearer "+s.token()).contentType("application/json").content(room(path,2))).andExpect(status().isCreated());
+        Long id=jdbc.queryForObject("select id from hotelya_test.hotel",Long.class);
+        jdbc.update("update hotelya_test.hotel set published=true where id=?",id);
+        jdbc.update("update hotelya_test.room_type set total_units=null, available_units=null where hotel_id=?",id);
+        String information=hotel.replace("Hotel de prueba","Hotel actualizado");
+        mvc.perform(put("/api/owner/hotel").header("Authorization","Bearer "+s.token()).contentType("application/json").content(information)).andExpect(status().isOk()).andExpect(jsonPath("$.published").value(true)).andExpect(jsonPath("$.detail.roomTypes.length()").value(3));
+        mvc.perform(get("/api/hotels/"+id)).andExpect(jsonPath("$.name").value("Hotel actualizado"));
+        mvc.perform(put("/api/owner/hotel/stay-cards").header("Authorization","Bearer "+s.token()).contentType("application/json").content("[]")).andExpect(status().isOk());
+        Long roomId=jdbc.queryForObject("select min(id) from hotelya_test.room_type where hotel_id=?",Long.class,id);
+        mvc.perform(put("/api/owner/hotel/room-types/"+roomId).header("Authorization","Bearer "+s.token()).contentType("application/json").content(room(path,1))).andExpect(status().isOk()).andExpect(jsonPath("$.published").value(true));
+        mvc.perform(delete("/api/owner/hotel/room-types/"+roomId).header("Authorization","Bearer "+s.token())).andExpect(status().isConflict());
+    }
     @Test void fakeUploadsAndInvalidRatesAreRejected() throws Exception {
         var s=register("owner@example.com"); hotel(s);
         mvc.perform(multipart("/api/owner/media").file(new MockMultipartFile("file","fake.png","image/png","<script>bad</script>".getBytes())).header("Authorization","Bearer "+s.token())).andExpect(status().isBadRequest());
