@@ -11,9 +11,10 @@ public final class CatalogDtos {
     public record HotelDetail(Long id, String name, String description, String address, String location,
             String phone, String logoPath, String facadePath, String videoPath, BigDecimal latitude,
             BigDecimal longitude, String whatsapp, String openingHours, String checkInOutConditions,
-            Boolean hasParking, List<RoomTypeDetail> roomTypes) {}
+            Boolean hasParking, List<RoomTypeDetail> roomTypes, List<StayCardInfo> stayCards) {}
     public record RoomTypeDetail(Long id, String code, String name, String description,
-            List<Photo> photos, List<Detail> details, List<RateInfo> rates) {}
+            List<Photo> photos, List<Detail> details, List<RateInfo> rates, Integer totalUnits, Integer availableUnits) {}
+    public record StayCardInfo(String title, String description) {}
     public record Photo(String path, String altText) {}
     public record Detail(DetailKind kind, String text) {}
     public record RateInfo(RateMode mode, BigDecimal amount, String currency, Integer packageHours,
