@@ -123,13 +123,22 @@ class OwnerPanelIntegrationTests {
         Long id=jdbc.queryForObject("select id from hotelya_test.hotel",Long.class);
         jdbc.update("update hotelya_test.hotel set published=true where id=?",id);
         jdbc.update("update hotelya_test.room_type set total_units=null, available_units=null where hotel_id=?",id);
-        String information=hotel.replace("Hotel de prueba","Hotel actualizado");
+        String information=hotel.replace("Hotel de prueba","Hotel actualizado").replace("}",",\"mapUrl\":\"https://maps.app.goo.gl/example\",\"openingTime\":\"20:00\",\"closingTime\":\"06:00\",\"hasParking\":true}");
         mvc.perform(put("/api/owner/hotel").header("Authorization","Bearer "+s.token()).contentType("application/json").content(information)).andExpect(status().isOk()).andExpect(jsonPath("$.published").value(true)).andExpect(jsonPath("$.detail.roomTypes.length()").value(3));
-        mvc.perform(get("/api/hotels/"+id)).andExpect(jsonPath("$.name").value("Hotel actualizado"));
+        mvc.perform(get("/api/hotels/"+id)).andExpect(jsonPath("$.name").value("Hotel actualizado")).andExpect(jsonPath("$.mapUrl").value("https://maps.app.goo.gl/example")).andExpect(jsonPath("$.openingHours").value("20:00 – 06:00 (día siguiente)")).andExpect(jsonPath("$.hasParking").value(true));
         mvc.perform(put("/api/owner/hotel/stay-cards").header("Authorization","Bearer "+s.token()).contentType("application/json").content("[]")).andExpect(status().isOk());
         Long roomId=jdbc.queryForObject("select min(id) from hotelya_test.room_type where hotel_id=?",Long.class,id);
         mvc.perform(put("/api/owner/hotel/room-types/"+roomId).header("Authorization","Bearer "+s.token()).contentType("application/json").content(room(path,1))).andExpect(status().isOk()).andExpect(jsonPath("$.published").value(true));
         mvc.perform(delete("/api/owner/hotel/room-types/"+roomId).header("Authorization","Bearer "+s.token())).andExpect(status().isConflict());
+    }
+    @Test void locationAndHoursAreValidatedAndCanBeCleared() throws Exception {
+        var s=register("hours@example.com"); hotel(s);
+        for(String invalid:List.of("javascript:alert(1)","http://example.com","https://user:pass@example.com")) {
+            mvc.perform(put("/api/owner/hotel").header("Authorization","Bearer "+s.token()).contentType("application/json").content(hotel.replace("}",",\"mapUrl\":\""+invalid+"\"}"))).andExpect(status().isBadRequest()).andExpect(jsonPath("$.fields.mapUrl").exists());
+        }
+        mvc.perform(put("/api/owner/hotel").header("Authorization","Bearer "+s.token()).contentType("application/json").content(hotel.replace("}",",\"openingTime\":\"09:00\"}"))).andExpect(status().isBadRequest()).andExpect(jsonPath("$.fields.closingTime").exists());
+        mvc.perform(put("/api/owner/hotel").header("Authorization","Bearer "+s.token()).contentType("application/json").content(hotel.replace("}",",\"openingTime\":\"00:00\",\"closingTime\":\"00:00\",\"hasParking\":false}"))).andExpect(status().isOk()).andExpect(jsonPath("$.detail.openingHours").value("24 horas")).andExpect(jsonPath("$.detail.hasParking").value(false));
+        mvc.perform(put("/api/owner/hotel").header("Authorization","Bearer "+s.token()).contentType("application/json").content(hotel)).andExpect(status().isOk()).andExpect(jsonPath("$.detail.openingTime").doesNotExist()).andExpect(jsonPath("$.detail.closingTime").doesNotExist()).andExpect(jsonPath("$.detail.openingHours").doesNotExist());
     }
     @Test void fakeUploadsAndInvalidRatesAreRejected() throws Exception {
         var s=register("owner@example.com"); hotel(s);

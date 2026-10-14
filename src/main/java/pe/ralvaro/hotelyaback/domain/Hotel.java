@@ -2,6 +2,7 @@ package pe.ralvaro.hotelyaback.domain;
 
 import jakarta.persistence.*;
 import java.math.BigDecimal;
+import java.time.LocalTime;
 
 @Entity
 @Table(name = "hotel")
@@ -39,6 +40,20 @@ public class Hotel {
     private String checkInOutConditions;
     @Column(name = "has_parking")
     private Boolean hasParking;
+
+    @Column(name = "map_url", length = 2048)
+    private String mapUrl;
+    @Column(name = "opening_time")
+    private LocalTime openingTime;
+    @Column(name = "closing_time")
+    private LocalTime closingTime;
+    public String getMapUrl() { return mapUrl; }
+    public LocalTime getOpeningTime() { return openingTime; }
+    public LocalTime getClosingTime() { return closingTime; }
+    public void updateLocationAndHours(String url, LocalTime start, LocalTime end) {
+        mapUrl = url; openingTime = start; closingTime = end;
+        if (start != null) openingHours = start.equals(end) ? "24 horas" : start + " – " + end + (end.isBefore(start) ? " (día siguiente)" : "");
+    }
 
     @Column(name = "owner_id", unique = true)
     private Long ownerId;

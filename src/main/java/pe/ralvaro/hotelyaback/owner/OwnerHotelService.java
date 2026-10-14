@@ -1,6 +1,8 @@
 package pe.ralvaro.hotelyaback.owner;
 import jakarta.persistence.*;
 import java.math.BigDecimal;
+import java.time.LocalTime;
+import java.net.URI;
 import java.util.*;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -15,7 +17,7 @@ public class OwnerHotelService {
     public OwnerHotelService(HotelRepository hotels,RoomTypeRepository rooms,CatalogService catalog) { this.hotels=hotels; this.rooms=rooms; this.catalog=catalog; }
     public record OwnerHotel(HotelDetail detail,boolean published) {}
     public record HotelWrite(String name,String description,String address,String location,String phone,String logoPath,String facadePath,String videoPath,
-        BigDecimal latitude,BigDecimal longitude,String whatsapp,String openingHours,String checkInOutConditions,Boolean hasParking) {}
+        BigDecimal latitude,BigDecimal longitude,String whatsapp,String openingHours,String checkInOutConditions,Boolean hasParking,String mapUrl,LocalTime openingTime,LocalTime closingTime) {}
     public record RoomWrite(String name,String description,Integer displayOrder,Integer totalUnits,Integer availableUnits,List<Photo> photos,List<Detail> details,List<RateInfo> rates) {}
     public Hotel owned(Long owner,boolean lock) {
         var hotel=hotels.findByOwnerId(owner).orElseThrow(() -> new ApiFailure(404,"Todavía no has creado tu hotel."));
@@ -31,11 +33,14 @@ public class OwnerHotelService {
     private void updateHotel(Hotel h,HotelWrite r) {
         String name=text(r.name(),"name",200,true), description=text(r.description(),"description",10000,true), address=text(r.address(),"address",500,true), location=text(r.location(),"location",200,true);
         String phone=phone(r.phone(),"phone"), whatsapp=phone(r.whatsapp(),"whatsapp");
+        String mapUrl=mapUrl(r.mapUrl());
+        if ((r.openingTime()==null)!=(r.closingTime()==null)) throw ApiFailure.field(r.openingTime()==null ? "openingTime" : "closingTime","Completa las horas de apertura y cierre.");
         coordinate(r.latitude(),"latitude",90); coordinate(r.longitude(),"longitude",180);
         if ((r.latitude()==null)!=(r.longitude()==null)) throw ApiFailure.field("latitude","Completa ambas coordenadas o deja ambas vacías.");
         mediaPath(h,r.logoPath(),"logoPath",false); mediaPath(h,r.facadePath(),"facadePath",false); mediaPath(h,r.videoPath(),"videoPath",true);
         h.update(name,description,address,location,phone,r.logoPath(),r.facadePath(),r.videoPath(),r.latitude(),r.longitude(),whatsapp,
             text(r.openingHours(),"openingHours",5000,false),text(r.checkInOutConditions(),"checkInOutConditions",5000,false),r.hasParking());
+        h.updateLocationAndHours(mapUrl,r.openingTime(),r.closingTime());
     }
     public OwnerHotel publication(Long owner,boolean publish) { var h=owned(owner,true); if(publish) validatePublication(h); h.setPublished(publish); entities.flush(); return read(owner); }
     public OwnerHotel saveRoom(Long owner,Long id,RoomWrite r) {
@@ -103,6 +108,15 @@ public class OwnerHotelService {
     }
     private void validatePublication(Hotel h) {
         if(!publicationReady(h)) throw new ApiFailure(409,"En Habitaciones, completa la cantidad total y las disponibles, una tarifa y una foto de al menos un tipo. Si quieres retirar el último tipo completo, oculta el hotel desde Inicio.");
+    }
+    private static String mapUrl(String value) {
+        String result=text(value,"mapUrl",2048,false);
+        if(result==null) return null;
+        try {
+            URI uri=URI.create(result);
+            if("https".equalsIgnoreCase(uri.getScheme()) && uri.getHost()!=null && uri.getUserInfo()==null) return result;
+        } catch(IllegalArgumentException ignored) {}
+        throw ApiFailure.field("mapUrl","Pega una URL HTTPS válida del lugar.");
     }
     public static String text(String value,String field,int max,boolean required) {
         if(value==null || value.trim().isEmpty()) { if(required) throw ApiFailure.field(field,"Este campo es obligatorio."); return null; }
