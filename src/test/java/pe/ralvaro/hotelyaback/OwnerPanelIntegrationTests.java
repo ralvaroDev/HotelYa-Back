@@ -81,4 +81,47 @@ class OwnerPanelIntegrationTests {
         jdbc.update("update hotelya_test.owner_session set expires_at=now()-interval '1 day'");
         mvc.perform(post("/api/auth/refresh").with(csrf()).cookie(s.cookie())).andExpect(status().isUnauthorized());
     }
+    @Test void ownerCannotUseAnotherOwnersRoomOrFiles() throws Exception {
+        var a=register("a@example.com"); hotel(a); var uploaded=upload(a);
+        String path=JsonPath.read(uploaded.getResponse().getContentAsString(),"$.path"), mediaId=JsonPath.read(uploaded.getResponse().getContentAsString(),"$.id");
+        var saved=mvc.perform(post("/api/owner/hotel/room-types").header("Authorization","Bearer "+a.token()).contentType("application/json").content(room(path,2))).andExpect(status().isCreated()).andReturn();
+        Number id=JsonPath.read(saved.getResponse().getContentAsString(),"$.detail.roomTypes[0].id");
+        var b=register("b@example.com"); hotel(b);
+        mvc.perform(put("/api/owner/hotel/room-types/"+id).header("Authorization","Bearer "+b.token()).contentType("application/json").content(room(null,1))).andExpect(status().isNotFound());
+        mvc.perform(delete("/api/owner/hotel/room-types/"+id).header("Authorization","Bearer "+b.token())).andExpect(status().isNotFound());
+        mvc.perform(post("/api/owner/hotel/room-types").header("Authorization","Bearer "+b.token()).contentType("application/json").content(room(path,1))).andExpect(status().isBadRequest());
+        mvc.perform(get("/api/owner/media/"+mediaId).header("Authorization","Bearer "+b.token())).andExpect(status().isNotFound());
+        mvc.perform(get(path)).andExpect(status().isNotFound());
+        mvc.perform(delete("/api/owner/media/"+mediaId).header("Authorization","Bearer "+b.token())).andExpect(status().isNotFound());
+    }
+    @Test void fullDraftPublicationEditingHidingAndDeletionFlow() throws Exception {
+        var s=register("owner@example.com"); hotel(s);
+        mvc.perform(get("/api/hotels")).andExpect(content().json("[]"));
+        mvc.perform(put("/api/owner/hotel/publication").header("Authorization","Bearer "+s.token()).contentType("application/json").content("{\"published\":true}")).andExpect(status().isConflict());
+        var uploaded=upload(s); String path=JsonPath.read(uploaded.getResponse().getContentAsString(),"$.path"), mediaId=JsonPath.read(uploaded.getResponse().getContentAsString(),"$.id");
+        mvc.perform(post("/api/owner/hotel/room-types").header("Authorization","Bearer "+s.token()).contentType("application/json").content(room(path,4))).andExpect(status().isBadRequest()).andExpect(jsonPath("$.fields.availableUnits").exists());
+        var saved=mvc.perform(post("/api/owner/hotel/room-types").header("Authorization","Bearer "+s.token()).contentType("application/json").content(room(path,2))).andExpect(status().isCreated()).andReturn();
+        Number roomId=JsonPath.read(saved.getResponse().getContentAsString(),"$.detail.roomTypes[0].id"), hotelId=JsonPath.read(saved.getResponse().getContentAsString(),"$.detail.id");
+        mvc.perform(put("/api/owner/hotel/stay-cards").header("Authorization","Bearer "+s.token()).contentType("application/json").content("[{\"title\":\"Ven a descansar\",\"description\":\"Te esperamos\"}]")).andExpect(status().isOk());
+        mvc.perform(put("/api/owner/hotel/publication").header("Authorization","Bearer "+s.token()).contentType("application/json").content("{\"published\":true}")).andExpect(status().isOk());
+        mvc.perform(get("/api/hotels/"+hotelId)).andExpect(status().isOk()).andExpect(jsonPath("$.roomTypes[0].availableUnits").value(2)).andExpect(jsonPath("$.stayCards[0].title").value("Ven a descansar"));
+        mvc.perform(get(path)).andExpect(status().isOk()).andExpect(content().contentType("image/png"));
+        mvc.perform(delete("/api/owner/hotel/room-types/"+roomId).header("Authorization","Bearer "+s.token())).andExpect(status().isConflict());
+        mvc.perform(get("/api/hotels/"+hotelId)).andExpect(jsonPath("$.roomTypes.length()").value(1));
+        mvc.perform(put("/api/owner/hotel/room-types/"+roomId).header("Authorization","Bearer "+s.token()).contentType("application/json").content(room(path,1))).andExpect(status().isOk());
+        mvc.perform(delete("/api/owner/media/"+mediaId).header("Authorization","Bearer "+s.token())).andExpect(status().isConflict());
+        mvc.perform(put("/api/owner/hotel/publication").header("Authorization","Bearer "+s.token()).contentType("application/json").content("{\"published\":false}")).andExpect(status().isOk());
+        mvc.perform(get("/api/hotels/"+hotelId)).andExpect(status().isNotFound()); mvc.perform(get(path)).andExpect(status().isNotFound());
+        mvc.perform(delete("/api/owner/hotel/room-types/"+roomId).header("Authorization","Bearer "+s.token())).andExpect(status().isOk());
+        mvc.perform(delete("/api/owner/media/"+mediaId).header("Authorization","Bearer "+s.token())).andExpect(status().isNoContent());
+        assertFalse(Files.exists(Path.of(System.getProperty("java.io.tmpdir"),"hotelya-owner-test-uploads",mediaId)));
+    }
+    @Test void fakeUploadsAndInvalidRatesAreRejected() throws Exception {
+        var s=register("owner@example.com"); hotel(s);
+        mvc.perform(multipart("/api/owner/media").file(new MockMultipartFile("file","fake.png","image/png","<script>bad</script>".getBytes())).header("Authorization","Bearer "+s.token())).andExpect(status().isBadRequest());
+        byte[] oversized=new byte[10*1024*1024+1]; byte[] valid=png(); System.arraycopy(valid,0,oversized,0,valid.length);
+        mvc.perform(multipart("/api/owner/media").file(new MockMultipartFile("file","large.png","image/png",oversized)).header("Authorization","Bearer "+s.token())).andExpect(status().isBadRequest()).andExpect(jsonPath("$.fields.file").exists());
+        mvc.perform(post("/api/owner/hotel/room-types").header("Authorization","Bearer "+s.token()).contentType("application/json").content(room(null,1).replace("\"amount\":25","\"amount\":-1"))).andExpect(status().isBadRequest()).andExpect(jsonPath("$.fields['rates.0.amount']").exists());
+        mvc.perform(post("/api/owner/hotel").header("Authorization","Bearer "+s.token()).contentType("application/json").content(hotel)).andExpect(status().isConflict());
+    }
 }

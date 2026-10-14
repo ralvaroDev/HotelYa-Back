@@ -1,6 +1,6 @@
 # Catálogo HotelYa
 
-Backend de lectura para el catálogo de Lumi’s Hotel. Utiliza Spring Boot 4.1.1, Java 25, Gradle, Spring Data JPA, PostgreSQL y Flyway. Los tipos Temática, Matrimonial y Premium son productos del hotel, no habitaciones físicas. Stock, disponibilidad y reservas se implementarán posteriormente.
+Backend del catálogo y del panel de dueños de hoteles. Utiliza Spring Boot 4.1.1, Java 25, Gradle, Spring Data JPA, PostgreSQL y Flyway. Los tipos Temática, Matrimonial y Premium son productos del hotel, no habitaciones físicas. El dueño configura cantidad total y disponible por tipo; las reservas quedan fuera de esta versión.
 
 ## Arranque local
 
@@ -55,7 +55,7 @@ npm ci
 npm run dev
 ```
 
-Abrir `http://127.0.0.1:5173`. El frontend usa Vite y TypeScript y consulta exclusivamente Spring Boot. Sus recursos multimedia siguen servidos por el frontend; PostgreSQL guarda sus referencias. Para cambiar el backend HTTP, editar `VITE_API_BASE_URL` en `HotelYa-Front/.env` y reiniciar Vite. Para el build, usar `HotelYa-Front/.env` o una variable del proceso: la URL se incorpora a los archivos de `dist`.
+Abrir `http://127.0.0.1:5173`. Usar `http://127.0.0.1:8080` como API para que las cookies de renovación compartan el mismo host. El frontend usa Vite y TypeScript y consulta exclusivamente Spring Boot. Sus recursos multimedia siguen servidos por el frontend; PostgreSQL guarda sus referencias. Para cambiar el backend HTTP, editar `VITE_API_BASE_URL` en `HotelYa-Front/.env` y reiniciar Vite. Para el build, usar `HotelYa-Front/.env` o una variable del proceso: la URL se incorpora a los archivos de `dist`.
 
 `npm run preview` comprueba el build en `http://127.0.0.1:4173`. Desarrollo y preview están permitidos por los orígenes locales de CORS. Si cambia el origen/puerto del frontend, actualizar también `HOTELYA_CORS_ORIGINS` y reiniciar Spring Boot. Ver el README del frontend para build, subrutas y pruebas.
 
@@ -112,7 +112,7 @@ El esquema `hotelya` no figura entre los esquemas publicados por PostgREST y las
 
 - `GET /api/hotels`: arreglo de resúmenes (`id`, `name`, `description`, `location`, `logoPath`); un catálogo vacío devuelve `[]`.
 - `GET /api/hotels/{id}`: datos del hotel y `roomTypes`, con `photos`, `details` y `rates`; hotel inexistente devuelve `404`.
-- No existen endpoints de escritura.
+- El catálogo público solo permite lectura; las escrituras requieren JWT y están bajo `/api/owner`.
 - La ficha conserva `hotel-central.html?id=<id>`. Para enlaces antiguos sin parámetro, consulta el listado y muestra el primer hotel; si está vacío, muestra el estado vacío.
 
 Solo el perfil `local` ejecuta la semilla mediante JPA. Si ya existe el hotel con código `lumis-hotel`, no modifica el hotel, sus tipos, fotos ni tarifas: conserva ediciones y eliminaciones deliberadas. Si se desea reponer datos eliminados, debe hacerse explícitamente, no mediante reinicios.
@@ -141,3 +141,42 @@ curl http://localhost:8080/api/hotels
 Las pruebas de integración llevan la etiqueta `integration`, se ejecutan explícitamente con la tarea `integrationTest` y utilizan el esquema separado `hotelya_test`. Flyway crea y valida ese esquema; los registros de prueba se revierten al terminar cada prueba. No se limpia ni modifica el catálogo `hotelya`, ni se ejecutan resets de Supabase.
 
 Cubren el acceso por 55329, la migración, listado vacío, ficha y 404, tipos/fotos/tarifas, valores desconocidos, semilla sin duplicados y conservación de ediciones, unicidad del código por hotel, exclusión de la Data API y CORS. Las pruebas de navegador verifican navegación, archivos multimedia, carga, vacío, error y reintento; las pruebas de fallos simulan respuestas HTTP y no modifican la base de datos.
+
+## Panel de dueños y JWT
+
+«Acceder» lleva al registro/login real; «Mi panel» abre la administración del único hotel de la cuenta. Un registro nuevo configura su hotel en borrador. El dueño puede editar la ficha, tipos, fotos, tarifas, cantidades y tarjetas de estadía, y publicar u ocultar el hotel.
+
+Configuración adicional en el `.env` privado (el script `run-local.sh` la exporta a Spring):
+
+| Variable | Uso |
+|---|---|
+| `HOTELYA_JWT_SECRET` | Secreto aleatorio de al menos 32 bytes, estable entre reinicios; generar con `openssl rand -base64 48` |
+| `HOTELYA_UPLOAD_DIR` | Ruta absoluta persistente y escribible para archivos; localmente puede ser `HotelYa-Back/.uploads` |
+| `HOTELYA_COOKIE_SECURE` | `false` para HTTP local; `true` para HTTPS, con cookies Secure y SameSite=None |
+| `HOTELYA_LUMIS_OWNER_EMAIL` | Correo de la cuenta inicial de Lumi’s, solo con perfil `local` |
+| `HOTELYA_LUMIS_OWNER_PASSWORD` | Contraseña inicial de esa cuenta, mínimo 8 caracteres y máximo 72 bytes |
+
+Las credenciales de la cuenta inicial se configuran exclusivamente en el `.env` privado. No publicar ese archivo ni el directorio de archivos. Ambos valores de la cuenta inicial deben configurarse juntos. La inicialización conserva la contraseña y asociación existentes; no recrea habitaciones ni cambia precios o cantidades.
+
+La cuenta tiene contraseña BCrypt. El access token es un JWT HS256 con emisor, audiencia, usuario y sesión, dura 15 minutos y vive en memoria del navegador. El refresh token aleatorio tiene vigencia absoluta de siete días, se rota, se guarda en una cookie HttpOnly y solo su hash permanece en PostgreSQL. Un refresh reutilizado revoca esa sesión. Logout revoca tanto la renovación como el acceso privado de sus JWT. Las operaciones con cookies exigen CSRF; las escrituras privadas utilizan Authorization Bearer. CORS permite únicamente los orígenes configurados y credenciales. El navegador no consulta Supabase Auth ni Storage: Supabase sigue siendo PostgreSQL privado para Spring.
+
+API:
+
+- `GET /api/auth/csrf`; `POST /api/auth/register`, `/login`, `/refresh`, `/logout`; `GET /api/auth/me`.
+- `GET`, `POST`, `PUT /api/owner/hotel`; `PUT /api/owner/hotel/publication` con `{ "published": true|false }`.
+- `POST /api/owner/hotel/room-types`; `PUT`, `DELETE /api/owner/hotel/room-types/{id}`. Cada actualización guarda las fotos, detalles y tarifas completas en una transacción.
+- `PUT /api/owner/hotel/stay-cards`, arreglo ordenado de `{ "title", "description" }`.
+- `GET`, `POST /api/owner/media`; `GET`, `DELETE /api/owner/media/{uuid}`. Upload usa multipart con campo `file`.
+- `GET /api/media/{uuid}` para archivos asociados a fichas publicadas. Las vistas privadas usan JWT y las respuestas de archivos no se almacenan en caché.
+
+Los errores de formularios tienen `{ "message", "fields" }`. Un identificador ajeno responde 404, la falta de sesión 401 y los conflictos de publicación o archivos usados 409. El backend toma siempre al dueño del JWT.
+
+Las imágenes JPEG/PNG/WebP se decodifican y admiten hasta 10 MB y 40 millones de píxeles; WebP usa TwelveMonkeys ImageIO. MP4 admite hasta 100 MB y se validan sus contenedores y la existencia de una pista de video. PostgreSQL conserva metadatos y los archivos usan UUID en el directorio configurado. Eliminar primero la asociación y guardar, luego eliminar el archivo de la biblioteca; no se borran los recursos originales compartidos del frontend. Para desplegar, montar un volumen persistente y respaldarlo junto con la base de datos.
+
+Publicar exige información básica y al menos un tipo con cantidades, una foto y una tarifa. `0 <= availableUnits <= totalUnits`; los tipos originales conservan ambas cantidades nulas hasta configurarlos. Los borradores y sus medios nuevos no aparecen en la API pública. Los hoteles existentes mantienen su publicación al migrar. Un cambio que invalide un hotel publicado se rechaza: ocultarlo primero permite completar la configuración.
+
+## Pruebas del panel
+
+`./gradlew build` incluye pruebas de detección y decodificación de archivos. `./scripts/test-integration.sh` prueba cuentas, JWT vencidos, rotación, replay, logout, CSRF, permisos entre dueños, CRUD, archivos, validaciones y publicación en `hotelya_test`.
+
+Desde el frontend, `npm run test:e2e:owner` inicia un backend aislado en 8081 y Vite en 5174, verifica el flujo completo en Chromium de escritorio y móvil y limpia sus datos. Requiere Docker y Supabase HotelYa activo. Los scripts `run-browser-test-backend.sh` y `clean-browser-test-data.sh` usan exclusivamente `hotelya_test`, nunca el catálogo `hotelya`. Ejecutar estas pruebas separadamente de las pruebas de integración Java porque comparten el esquema de pruebas. La configuración inicial de Lumi’s se desactiva en ese servidor de pruebas.
