@@ -18,7 +18,9 @@ public class OwnerHotelService {
     public record OwnerHotel(HotelDetail detail,boolean published) {}
     public record HotelWrite(String name,String description,String address,String location,String phone,String logoPath,String facadePath,String videoPath,
         BigDecimal latitude,BigDecimal longitude,String whatsapp,String openingHours,String checkInOutConditions,Boolean hasParking,String mapUrl,LocalTime openingTime,LocalTime closingTime) {}
-    public record RoomWrite(String name,String description,Integer displayOrder,Integer totalUnits,Integer availableUnits,List<Photo> photos,List<Detail> details,List<RateInfo> rates) {}
+    public record RoomPhotoWrite(String path) {}
+    public record RoomRateWrite(RateMode mode,BigDecimal amount,Integer packageHours,String currency) {}
+    public record RoomWrite(String name,String description,Integer displayOrder,Integer totalUnits,Integer availableUnits,String photoScope,List<RoomPhotoWrite> photos,List<Detail> details,List<RoomRateWrite> rates) {}
     public Hotel owned(Long owner,boolean lock) {
         var hotel=hotels.findByOwnerId(owner).orElseThrow(() -> new ApiFailure(404,"Todavía no has creado tu hotel."));
         if (lock) entities.lock(hotel,LockModeType.PESSIMISTIC_WRITE); return hotel;
@@ -46,23 +48,30 @@ public class OwnerHotelService {
     public OwnerHotel saveRoom(Long owner,Long id,RoomWrite r) {
         var h=owned(owner,true);
         boolean protectPublication=h.isPublished() && publicationReady(h);
-        RoomType type=id==null ? new RoomType(h,"room-"+UUID.randomUUID(),"","",0) : room(h,id);
+        String scope=r.photoScope()==null ? "room-"+UUID.randomUUID() : r.photoScope();
+        if(id==null && !scope.matches("room-[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}")) throw ApiFailure.field("photos","Sube fotografías desde esta habitación.");
+        RoomType type=id==null ? new RoomType(h,scope,"","",0) : room(h,id);
+        if(id!=null && r.photoScope()!=null && !type.getCode().equals(r.photoScope())) throw ApiFailure.field("photos","Estas fotografías corresponden a otro tipo de habitación.");
         if(r.displayOrder()==null || r.displayOrder()<0) throw ApiFailure.field("displayOrder","El orden debe ser un entero no negativo.");
         if(r.totalUnits()==null || r.availableUnits()==null || r.totalUnits()<0 || r.availableUnits()<0 || r.availableUnits()>r.totalUnits()) throw ApiFailure.field("availableUnits","Completa cantidades enteras: disponibles entre cero y la cantidad total.");
-        var photos=list(r.photos(),"photos",50); var details=list(r.details(),"details",100); var rates=list(r.rates(),"rates",50);
-        for(int i=0;i<photos.size();i++) { var p=photos.get(i); if(p==null || p.path()==null) throw ApiFailure.field("photos."+i+".path","Selecciona una fotografía."); mediaPath(h,p.path(),"photos."+i+".path",false); text(p.altText(),"photos."+i+".altText",300,true); }
+        var photos=list(r.photos(),"photos",50); var details=list(r.details(),"details",100); var rates=list(r.rates(),"rates",3);
+        Set<String> photoPaths=new HashSet<>();
+        for(int i=0;i<photos.size();i++) {
+            var p=photos.get(i); String field="photos."+i+".path";
+            if(p==null || p.path()==null || !photoPaths.add(p.path())) throw ApiFailure.field(field,"Selecciona fotografías diferentes.");
+            roomPhotoPath(h,type,p.path(),field);
+        }
         for(int i=0;i<details.size();i++) { var d=details.get(i); if(d==null || d.kind()==null) throw ApiFailure.field("details."+i+".kind","Selecciona una categoría."); text(d.text(),"details."+i+".text",5000,true); }
-        Set<String> combinations=new HashSet<>();
+        Set<RateMode> combinations=new HashSet<>();
         for(int i=0;i<rates.size();i++) {
             var rate=rates.get(i); String key="rates."+i;
             if(rate==null || rate.mode()==null) throw ApiFailure.field(key+".mode","Selecciona una modalidad.");
             if(rate.amount()==null || rate.amount().signum()<=0 || rate.amount().scale()>2 || rate.amount().precision()-rate.amount().scale()>10) throw ApiFailure.field(key+".amount","Introduce un importe positivo con hasta dos decimales.");
-            if(rate.currency()==null || !rate.currency().matches("[A-Z]{3}")) throw ApiFailure.field(key+".currency","Usa un código de moneda de tres letras, por ejemplo PEN.");
+            if(rate.currency()!=null && !"PEN".equals(rate.currency())) throw ApiFailure.field(key+".currency","Las tarifas se manejan únicamente en soles.");
             if(rate.mode()==RateMode.PACKAGE) {
                 if(rate.packageHours()==null || rate.packageHours()<=0) throw ApiFailure.field(key+".packageHours","Introduce una duración positiva en horas.");
-                if(rate.additionalHourAmount()==null || rate.additionalHourAmount().signum()<0 || rate.additionalHourAmount().scale()>2 || rate.additionalHourAmount().precision()-rate.additionalHourAmount().scale()>10) throw ApiFailure.field(key+".additionalHourAmount","Introduce el importe de la hora adicional, cero o mayor.");
-            } else if(rate.packageHours()!=null || rate.additionalHourAmount()!=null) throw ApiFailure.field(key+".mode","La duración y hora adicional corresponden solo a paquetes.");
-            if(!combinations.add(rate.mode()+":"+rate.packageHours())) throw ApiFailure.field(key+".mode","Esta modalidad y duración ya tienen una tarifa.");
+            } else if(rate.packageHours()!=null) throw ApiFailure.field(key+".mode","La duración corresponde solo a paquetes.");
+            if(!combinations.add(rate.mode())) throw ApiFailure.field(key+".mode","Solo se permite una tarifa por modalidad.");
         }
         type.update(text(r.name(),"name",200,true),text(r.description(),"description",10000,true),r.displayOrder(),r.totalUnits(),r.availableUnits());
         if(id==null) entities.persist(type);
@@ -70,9 +79,9 @@ public class OwnerHotelService {
         for(var d:new ArrayList<>(type.getDetails())) entities.remove(d);
         for(var rate:new ArrayList<>(type.getRates())) entities.remove(rate);
         type.getPhotos().clear(); type.getDetails().clear(); type.getRates().clear();
-        for(int i=0;i<photos.size();i++) { var p=photos.get(i); var entity=new RoomPhoto(type,p.path(),p.altText().trim(),i); entities.persist(entity); type.getPhotos().add(entity); }
+        for(int i=0;i<photos.size();i++) { var p=photos.get(i); var entity=new RoomPhoto(type,p.path(),"Habitación "+type.getName(),i); entities.persist(entity); type.getPhotos().add(entity); }
         for(int i=0;i<details.size();i++) { var d=details.get(i); var entity=new RoomDetail(type,d.kind(),d.text().trim(),i); entities.persist(entity); type.getDetails().add(entity); }
-        for(var rate:rates) { var entity=new Rate(type,rate.mode(),rate.amount(),rate.currency(),rate.packageHours(),rate.additionalHourAmount(),rate.simulated()); entities.persist(entity); type.getRates().add(entity); }
+        for(var rate:rates) { var entity=new Rate(type,rate.mode(),rate.amount(),"PEN",rate.packageHours(),null,false); entities.persist(entity); type.getRates().add(entity); }
         entities.flush(); if(protectPublication) validatePublication(h); return read(owner);
     }
     public OwnerHotel deleteRoom(Long owner,Long id) {
@@ -92,12 +101,27 @@ public class OwnerHotelService {
         if(path.equals(h.getLogoPath()) || path.equals(h.getFacadePath()) || path.equals(h.getVideoPath())) return true;
         return entities.createQuery("select count(p) from RoomPhoto p where p.roomType.hotel.id=:hotel and p.path=:path",Long.class).setParameter("hotel",h.getId()).setParameter("path",path).getSingleResult()>0;
     }
+    public void validatePhotoScope(Hotel h,String scope) {
+        if(scope!=null && scope.matches("room-[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}")) return;
+        if(scope!=null && scope.length()<=80 && entities.createQuery("select count(r) from RoomType r where r.hotel.id=:hotel and r.code=:scope",Long.class).setParameter("hotel",h.getId()).setParameter("scope",scope).getSingleResult()>0) return;
+        throw ApiFailure.field("file","Sube la imagen desde el tipo de habitación correspondiente.");
+    }
+    private void roomPhotoPath(Hotel h,RoomType room,String path,String field) {
+        if(room.getPhotos().stream().anyMatch(p -> p.getPath().equals(path))) return;
+        if(path.startsWith("/api/media/")) {
+            try {
+                var media=entities.find(MediaFile.class,UUID.fromString(path.substring(11)));
+                if(media!=null && media.hotelId.equals(h.getId()) && room.getCode().equals(media.roomScope) && media.contentType.startsWith("image/") && path.equals("/api/media/"+media.id)) return;
+            } catch(IllegalArgumentException ignored) {}
+        }
+        throw ApiFailure.field(field,"Sube una imagen nueva para este tipo de habitación. Las fotografías no se comparten.");
+    }
     private void mediaPath(Hotel h,String path,String field,boolean video) {
         if(path==null) return;
         if(path.startsWith("/api/media/")) {
             try {
                 var media=entities.find(MediaFile.class,UUID.fromString(path.substring(11)));
-                if(media!=null && media.hotelId.equals(h.getId()) && path.equals("/api/media/"+media.id) && media.contentType.startsWith(video?"video/":"image/")) return;
+                if(media!=null && media.hotelId.equals(h.getId()) && media.roomScope==null && path.equals("/api/media/"+media.id) && media.contentType.startsWith(video?"video/":"image/")) return;
             } catch(IllegalArgumentException ignored) {}
         } else if(path.startsWith(video?"assets/videos/":"assets/images/") && referenced(h,path)) return;
         throw ApiFailure.field(field,"Selecciona un archivo de tu hotel.");
