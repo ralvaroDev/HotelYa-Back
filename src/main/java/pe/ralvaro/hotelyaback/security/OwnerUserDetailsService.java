@@ -1,11 +1,10 @@
 package pe.ralvaro.hotelyaback.security;
 
-
-import pe.ralvaro.hotelyaback.infrastructure.OwnerAccountRepository;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import pe.ralvaro.hotelyaback.repository.OwnerAccountRepository;
 
 @Service
 @Transactional(readOnly=true)

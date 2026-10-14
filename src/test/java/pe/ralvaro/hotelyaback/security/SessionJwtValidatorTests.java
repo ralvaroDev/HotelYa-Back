@@ -5,9 +5,9 @@ import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.security.oauth2.jwt.Jwt;
-import pe.ralvaro.hotelyaback.application.auth.SessionService;
-import pe.ralvaro.hotelyaback.domain.OwnerSession;
-import pe.ralvaro.hotelyaback.infrastructure.OwnerSessionRepository;
+import pe.ralvaro.hotelyaback.model.OwnerSession;
+import pe.ralvaro.hotelyaback.repository.OwnerSessionRepository;
+import pe.ralvaro.hotelyaback.service.SessionService;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 

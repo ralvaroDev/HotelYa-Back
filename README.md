@@ -189,18 +189,34 @@ La escritura de tarifas admite una única entrada de cada modalidad HOUR, PACKAG
 
 ### Capas de persistencia
 
-Los controladores atienden HTTP; los servicios coordinan reglas de negocio, autorización y transacciones; los repositorios de `infrastructure` encapsulan el acceso a PostgreSQL mediante Spring Data JPA/Hibernate. Los servicios y la carga inicial usan repositorios, sin `EntityManager` ni consultas directas. Las entidades conservan su mapeo Jakarta Persistence.
+Los controladores atienden HTTP; los servicios coordinan reglas de negocio, autorización y transacciones; los repositorios de `repository` encapsulan el acceso a PostgreSQL mediante Spring Data JPA/Hibernate. Los servicios y la carga inicial usan repositorios, sin `EntityManager` ni consultas directas. Las entidades conservan su mapeo Jakarta Persistence.
 
 Los repositorios de hotel y sesión declaran las consultas con bloqueo pesimista utilizadas por edición, renovación y cierre de sesión. Los cambios sobre entidades cargadas se guardan al finalizar la transacción del servicio mediante el seguimiento de cambios de JPA; los `flush()` de repositorio conservan los puntos de sincronización requeridos por el flujo.
 
 `RefreshTokenService` encapsula la generación aleatoria, la rotación, el hash SHA-256, la comparación y la lectura del identificador de sesión del refresh token. `AuthService` coordina el ciclo de sesión, la persistencia mediante repositorios, la caducidad y la revocación por reutilización; `JwtService` emite los access tokens JWT.
 
-### Organización de autenticación
+### Organización MVC
 
-- `application/auth`: `AuthService`, `JwtService`, `RefreshTokenService`, `SessionService` y los contratos internos `AuthCredentials`, `AuthUser` y `AuthTokens`.
-- `presentation/auth`: controller y DTO HTTP en `dto`; el controller convierte los contratos de aplicación a respuestas públicas y coloca el refresh token únicamente en la cookie HttpOnly.
-- `domain`: entidades JPA `OwnerAccount` y `OwnerSession`.
-- `security`: configuración, adaptación de usuarios a Spring Security y `SessionJwtValidator`. Este validador comprueba `sid` y delega en `SessionService.isSessionActive` para rechazar sesiones ausentes, revocadas, vencidas o de otro usuario.
-- `infrastructure`: repositorios y configuración de la cuenta local inicial.
+El backend utiliza Spring MVC y una estructura por capas con nombres explícitos:
+
+```text
+pe.ralvaro.hotelyaback/
+├── controller/     # Endpoints HTTP; advice/ contiene el manejador de errores
+├── model/          # Entidades JPA y enumeraciones del modelo
+├── service/        # Reglas de negocio, autenticación y transacciones
+├── repository/     # Acceso a PostgreSQL con Spring Data JPA
+├── dto/
+│   ├── request/    # Entradas HTTP de autenticación, hotel y habitaciones
+│   ├── response/   # Respuestas HTTP de autenticación, hotel, archivos y errores
+│   ├── auth/       # Contratos internos de autenticación
+│   └── catalog/    # DTO del catálogo, incluidos datos compartidos con el editor
+├── security/       # Adaptación a Spring Security y validación JWT
+├── config/         # Configuración de seguridad e inicialización local
+└── exception/      # Excepciones de aplicación
+```
+
+La **vista** corresponde a `HotelYa-Front`, que presenta la interfaz y consume la API JSON. El **controller** adapta HTTP y delega; el **modelo** representa las entidades y reglas del sistema, apoyado por servicios y repositorios. No se utiliza una carpeta `view` en el backend porque no renderiza plantillas HTML.
+
+Los DTO se declaran fuera de controllers y servicios. El controller de autenticación convierte `AuthTokens` y `AuthUser` a respuestas públicas y entrega el refresh token únicamente en la cookie HttpOnly. `SessionJwtValidator` delega en `SessionService.isSessionActive` para rechazar sesiones ausentes, revocadas, vencidas o de otro usuario.
 
 La comprobación de sesión conserva la revocación inmediata del access token tras logout o reutilización del refresh token y consulta PostgreSQL en cada autenticación con JWT.

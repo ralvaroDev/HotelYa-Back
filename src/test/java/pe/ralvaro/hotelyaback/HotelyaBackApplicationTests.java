@@ -1,6 +1,7 @@
 package pe.ralvaro.hotelyaback;
 
 import jakarta.persistence.EntityManager;
+import javax.sql.DataSource;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -9,9 +10,9 @@ import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
-import pe.ralvaro.hotelyaback.infrastructure.HotelRepository;
-import pe.ralvaro.hotelyaback.infrastructure.LocalCatalogSeeder;
-import javax.sql.DataSource;
+import pe.ralvaro.hotelyaback.model.Hotel;
+import pe.ralvaro.hotelyaback.repository.HotelRepository;
+import pe.ralvaro.hotelyaback.service.LocalCatalogSeeder;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
