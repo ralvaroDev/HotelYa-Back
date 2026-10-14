@@ -1,5 +1,6 @@
 plugins {
     java
+    jacoco
     id("org.springframework.boot") version "4.1.1"
     id("io.spring.dependency-management") version "1.1.7"
 }
@@ -46,3 +47,39 @@ tasks.register<Test>("integrationTest") {
     shouldRunAfter(tasks.test)
 }
 tasks.test { useJUnitPlatform { excludeTags("integration") } }
+
+jacoco { toolVersion = "0.8.15" }
+
+// Measure business logic and authentication, independently of database/browser tests.
+val unitCoverageClasses = sourceSets.main.get().output.asFileTree.matching {
+    include("pe/ralvaro/hotelyaback/service/**", "pe/ralvaro/hotelyaback/security/**")
+}
+
+tasks.jacocoTestReport {
+    dependsOn(tasks.test)
+    classDirectories.setFrom(unitCoverageClasses)
+    reports {
+        html.required.set(true)
+        xml.required.set(true)
+    }
+}
+
+tasks.jacocoTestCoverageVerification {
+    dependsOn(tasks.jacocoTestReport)
+    classDirectories.setFrom(unitCoverageClasses)
+    violationRules {
+        rule {
+            limit {
+                counter = "LINE"
+                minimum = "0.70".toBigDecimal()
+            }
+            limit {
+                counter = "BRANCH"
+                minimum = "0.50".toBigDecimal()
+            }
+        }
+    }
+}
+
+tasks.test { finalizedBy(tasks.jacocoTestReport) }
+tasks.check { dependsOn(tasks.jacocoTestCoverageVerification) }

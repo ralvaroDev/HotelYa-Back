@@ -195,9 +195,30 @@ Publicar exige información básica y al menos un tipo con cantidades, una foto 
 
 ## Pruebas del panel
 
-`./gradlew build` incluye pruebas de detección y decodificación de archivos. `./scripts/test-integration.sh` prueba cuentas, JWT vencidos, rotación, replay, logout, CSRF, permisos entre dueños, CRUD, archivos, validaciones y publicación en `hotelya_test`.
+El alcance de TDD de este proyecto es el **backend**. Las pruebas unitarias usan JUnit Jupiter para ejecutar casos y comprobar resultados, y Mockito para simular repositorios y dependencias. Ambas librerías ya llegan con los starters de pruebas de Spring Boot. No requieren navegador, Docker, Supabase, variables de entorno ni arrancar Spring. MockMvc se reserva para las pruebas HTTP de integración; no es una librería de UI.
 
-Desde el frontend, `npm run test:e2e:owner` inicia un backend aislado en 8081 y Vite en 5174, verifica el flujo completo en Chromium de escritorio y móvil y limpia sus datos. Requiere Docker y Supabase HotelYa activo. Los scripts `run-browser-test-backend.sh` y `clean-browser-test-data.sh` usan exclusivamente `hotelya_test`, nunca el catálogo `hotelya`. Ejecutar estas pruebas separadamente de las pruebas de integración Java porque comparten el esquema de pruebas. La configuración inicial de Lumi’s se desactiva en ese servidor de pruebas.
+```bash
+./gradlew test    # Unitarias y reporte de cobertura
+./gradlew check   # Unitarias y mínimos de cobertura
+./gradlew build   # Compilación, empaquetado y las mismas verificaciones
+```
+
+Cada caso debe comprobar una regla observable con preparación, acción y resultado: catálogo público y borradores, registro/login, tokens y sesiones, información del hotel, cantidades, tarifas, publicación, propiedad y archivos. Usar objetos reales para datos y lógica propia; simular únicamente colaboradores externos al servicio. Los archivos temporales de las pruebas se crean con `@TempDir`. No agregar pruebas de getters, DTOs o detalles internos solo para subir un porcentaje.
+
+JaCoCo 0.8.15 mide exclusivamente `service` y `security`, utilizando la ejecución unitaria `test`. El mínimo agregado es **70 % de líneas y 50 % de ramas**. Son umbrales de este proyecto, no una exigencia de TDD ni una garantía sobre todas las funcionalidades. Los controladores, configuración, entidades, DTOs y repositorios no forman parte de ese porcentaje. Los reportes están en `build/reports/jacoco/test/html/index.html` y `build/reports/jacoco/test/jacocoTestReport.xml`. No se mezcla cobertura de integración con la unitaria.
+
+### Flujo TDD para cambios del backend
+
+1. Elegir una regla pequeña y escribir primero su prueba en `src/test/java`, junto al servicio correspondiente. Para un defecto, reproducirlo en una prueba antes de corregirlo.
+2. Ejecutar `./gradlew test --tests 'pe.ralvaro.hotelyaback.service.NombreTests'` y comprobar que falla por el comportamiento pendiente, no por errores de compilación o entorno.
+3. Implementar el cambio mínimo y repetir ese comando hasta que pase.
+4. Refactorizar si hace falta y ejecutar `./gradlew check` para conservar toda la suite en verde. Registrar en la revisión del cambio el caso que fallaba y los comandos/resultados antes y después; no hace falta guardar commits rotos.
+
+Las pruebas añadidas a funcionalidades ya existentes son pruebas de caracterización/regresión. No demuestran que esas funcionalidades se desarrollaron mediante TDD. La medición y los mínimos permiten detectar huecos; el ciclo anterior debe aplicarse en cada cambio nuevo. Se priorizan casos válidos, errores habituales y límites importantes, sin exigir 100 %.
+
+`./scripts/test-integration.sh` sigue siendo una verificación separada: prueba cuentas, JWT vencidos, rotación, replay, logout, CSRF, permisos entre dueños, CRUD, archivos, validaciones y publicación en `hotelya_test`. Requiere Supabase local y no se ejecuta automáticamente con `test`, `check` ni `build`.
+
+Las pruebas de navegador del frontend quedan fuera del requisito TDD del backend. La suite opcional `npm run test:e2e:owner` conserva únicamente la comprobación visual de login en escritorio y móvil, con servidores aislados en 8081/5174. No ejecutarla simultáneamente con las pruebas de integración Java porque comparten `hotelya_test`.
 
 El editor de habitaciones carga fotografías con un `roomScope` ligado al código del tipo (o al identificador de su borrador). Estos archivos no se ofrecen en Multimedia y no pueden asignarse a otro tipo ni a la identidad del hotel. Las fotografías existentes se conservan. El texto de cada imagen se deriva del nombre del tipo; el dueño no edita texto alternativo.
 
