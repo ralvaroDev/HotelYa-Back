@@ -192,3 +192,5 @@ La escritura de tarifas admite una única entrada de cada modalidad HOUR, PACKAG
 Los controladores atienden HTTP; los servicios coordinan reglas de negocio, autorización y transacciones; los repositorios de `infrastructure` encapsulan el acceso a PostgreSQL mediante Spring Data JPA/Hibernate. Los servicios y la carga inicial usan repositorios, sin `EntityManager` ni consultas directas. Las entidades conservan su mapeo Jakarta Persistence.
 
 Los repositorios de hotel y sesión declaran las consultas con bloqueo pesimista utilizadas por edición, renovación y cierre de sesión. Los cambios sobre entidades cargadas se guardan al finalizar la transacción del servicio mediante el seguimiento de cambios de JPA; los `flush()` de repositorio conservan los puntos de sincronización requeridos por el flujo.
+
+`RefreshTokenService` encapsula la generación aleatoria, la rotación, el hash SHA-256, la comparación y la lectura del identificador de sesión del refresh token. `AuthService` coordina el ciclo de sesión, la persistencia mediante repositorios, la caducidad y la revocación por reutilización; `JwtService` emite los access tokens JWT.

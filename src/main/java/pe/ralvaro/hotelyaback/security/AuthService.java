@@ -12,9 +12,6 @@ import pe.ralvaro.hotelyaback.infrastructure.OwnerAccountRepository;
 import pe.ralvaro.hotelyaback.infrastructure.OwnerSessionRepository;
 
 import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
-import java.security.SecureRandom;
 import java.time.Instant;
 import java.util.*;
 
@@ -24,24 +21,17 @@ public class AuthService {
     private final PasswordEncoder passwords;
     private final AuthenticationManager authenticationManager;
     private final JwtService jwtService;
-    private final SecureRandom random = new SecureRandom();
+    private final RefreshTokenService refreshTokens;
     private final OwnerAccountRepository accounts;
     private final OwnerSessionRepository sessions;
 
-    public AuthService(PasswordEncoder passwords, AuthenticationManager authenticationManager, JwtService jwtService, OwnerAccountRepository accounts, OwnerSessionRepository sessions) {
+    public AuthService(PasswordEncoder passwords, AuthenticationManager authenticationManager, JwtService jwtService, OwnerAccountRepository accounts, OwnerSessionRepository sessions, RefreshTokenService refreshTokens) {
         this.passwords = passwords;
         this.authenticationManager = authenticationManager;
         this.jwtService = jwtService;
         this.accounts = accounts;
         this.sessions = sessions;
-    }
-
-    private static String hash(String token) {
-        try {
-            return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(token.getBytes(StandardCharsets.UTF_8)));
-        } catch (NoSuchAlgorithmException e) {
-            throw new IllegalStateException(e);
-        }
+        this.refreshTokens = refreshTokens;
     }
 
     public String normalizedEmail(String email) {
@@ -84,17 +74,9 @@ public class AuthService {
 
     private Tokens newSession(OwnerAccount account) {
         var session = new OwnerSession(account.id);
-        String token = rotate(session);
+        String token = refreshTokens.rotate(session);
         session = sessions.save(session);
         return tokens(account, session, token);
-    }
-
-    private String rotate(OwnerSession session) {
-        byte[] bytes = new byte[32];
-        random.nextBytes(bytes);
-        String token = session.id + "." + Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
-        session.refreshHash = hash(token);
-        return token;
     }
 
     private Tokens tokens(OwnerAccount account, OwnerSession session, String refresh) {
@@ -103,27 +85,22 @@ public class AuthService {
     }
 
     private OwnerSession cookieSession(String token) {
-        if (token == null || token.length() > 150) return null;
-        try {
-            return sessions.findByIdForUpdate(UUID.fromString(token.split("\\.", 2)[0])).orElse(null);
-        } catch (IllegalArgumentException e) {
-            return null;
-        }
+        return refreshTokens.sessionId(token).flatMap(sessions::findByIdForUpdate).orElse(null);
     }
 
     public Tokens refresh(String token) {
         var session = cookieSession(token);
         if (session == null || session.revoked || !session.expiresAt.isAfter(Instant.now())) return null;
-        if (!MessageDigest.isEqual(session.refreshHash.getBytes(StandardCharsets.US_ASCII), hash(token).getBytes(StandardCharsets.US_ASCII))) {
+        if (!refreshTokens.matches(session, token)) {
             session.revoked = true;
             return null;
         }
-        return tokens(accounts.findById(session.ownerId).orElseThrow(() -> new ApiFailure(401, "Inicia sesión para continuar.")), session, rotate(session));
+        return tokens(accounts.findById(session.ownerId).orElseThrow(() -> new ApiFailure(401, "Inicia sesión para continuar.")), session, refreshTokens.rotate(session));
     }
 
     public void logout(String token) {
         var session = cookieSession(token);
-        if (session != null && MessageDigest.isEqual(session.refreshHash.getBytes(StandardCharsets.US_ASCII), hash(token).getBytes(StandardCharsets.US_ASCII)))
+        if (session != null && refreshTokens.matches(session, token))
             session.revoked = true;
     }
 

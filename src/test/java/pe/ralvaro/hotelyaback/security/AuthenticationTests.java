@@ -38,7 +38,7 @@ class AuthenticationTests {
         when(accounts.findByEmail("owner@example.com")).thenReturn(Optional.of(account));
         when(accounts.findById(42L)).thenReturn(Optional.of(account));
         when(sessions.save(any(OwnerSession.class))).thenAnswer(invocation -> invocation.getArgument(0));
-        auth=new AuthService(passwords,manager,new JwtService(configuration.jwtEncoder(SECRET)),accounts,sessions);
+        auth=new AuthService(passwords,manager,new JwtService(configuration.jwtEncoder(SECRET)),accounts,sessions,new RefreshTokenService());
         decoder=NimbusJwtDecoder.withSecretKey(new SecretKeySpec(SECRET.getBytes(StandardCharsets.UTF_8),"HmacSHA256"))
             .macAlgorithm(MacAlgorithm.HS256).build();
     }
