@@ -39,13 +39,18 @@ class OwnerPanelIntegrationTests {
         {"name":"Hotel de prueba","description":"Descripción","address":"Dirección de prueba","location":"Lima"}
         """;
     private void hotel(Session s) throws Exception { mvc.perform(post("/api/owner/hotel").header("Authorization","Bearer "+s.token()).contentType("application/json").content(hotel)).andExpect(status().isCreated()); }
+    private final Map<String,String> photoScopes=new HashMap<>();
     private String room(String path,int available) { return """
         {"name":"Matrimonial","description":"Habitación de prueba","displayOrder":0,"totalUnits":3,"availableUnits":%d,
-        "photos":%s,"details":[{"kind":"FEATURE","text":"Cama matrimonial"}],
+        "photoScope":"%s","photos":%s,"details":[{"kind":"FEATURE","text":"Cama matrimonial"}],
         "rates":[{"mode":"HOUR","amount":25,"currency":"PEN","packageHours":null,"additionalHourAmount":null,"simulated":false}]}
-        """.formatted(available,path==null?"[]":"[{\"path\":\""+path+"\",\"altText\":\"Habitación\"}]"); }
+        """.formatted(available,photoScopes.getOrDefault(path,"room-"+UUID.randomUUID()),path==null?"[]":"[{\"path\":\""+path+"\",\"altText\":\"Habitación\"}]"); }
     private byte[] png() throws Exception { var stream=new ByteArrayOutputStream(); ImageIO.write(new BufferedImage(4,4,BufferedImage.TYPE_INT_RGB),"png",stream); return stream.toByteArray(); }
-    private MvcResult upload(Session s) throws Exception { return mvc.perform(multipart("/api/owner/media").file(new MockMultipartFile("file","foto.png","image/png",png())).header("Authorization","Bearer "+s.token())).andExpect(status().isCreated()).andReturn(); }
+    private MvcResult upload(Session s) throws Exception {
+        String scope="room-"+UUID.randomUUID();
+        var result=mvc.perform(multipart("/api/owner/media").param("roomScope",scope).file(new MockMultipartFile("file","foto.png","image/png",png())).header("Authorization","Bearer "+s.token())).andExpect(status().isCreated()).andReturn();
+        photoScopes.put(JsonPath.read(result.getResponse().getContentAsString(),"$.path"),scope); return result;
+    }
     @AfterEach void cleanIsolatedSchema() throws Exception {
         for(String id:jdbc.queryForList("select id::text from hotelya_test.media_file",String.class)) Files.deleteIfExists(Path.of(System.getProperty("java.io.tmpdir"),"hotelya-owner-test-uploads",id));
         for(String table:List.of("stay_card","media_file","rate","room_detail","room_photo","room_type","hotel","owner_session","owner_account")) jdbc.update("delete from hotelya_test."+table);
@@ -119,7 +124,7 @@ class OwnerPanelIntegrationTests {
     @Test void legacyPublishedHotelCanSaveInformationAndConfigureRoomsProgressively() throws Exception {
         var s=register("legacy@example.com"); hotel(s);
         String path=JsonPath.read(upload(s).getResponse().getContentAsString(),"$.path");
-        for(int i=0;i<3;i++) mvc.perform(post("/api/owner/hotel/room-types").header("Authorization","Bearer "+s.token()).contentType("application/json").content(room(path,2))).andExpect(status().isCreated());
+        for(int i=0;i<3;i++) mvc.perform(post("/api/owner/hotel/room-types").header("Authorization","Bearer "+s.token()).contentType("application/json").content(room(i==0 ? path : JsonPath.read(upload(s).getResponse().getContentAsString(),"$.path"),2))).andExpect(status().isCreated());
         Long id=jdbc.queryForObject("select id from hotelya_test.hotel",Long.class);
         jdbc.update("update hotelya_test.hotel set published=true where id=?",id);
         jdbc.update("update hotelya_test.room_type set total_units=null, available_units=null where hotel_id=?",id);
@@ -139,6 +144,34 @@ class OwnerPanelIntegrationTests {
         mvc.perform(put("/api/owner/hotel").header("Authorization","Bearer "+s.token()).contentType("application/json").content(hotel.replace("}",",\"openingTime\":\"09:00\"}"))).andExpect(status().isBadRequest()).andExpect(jsonPath("$.fields.closingTime").exists());
         mvc.perform(put("/api/owner/hotel").header("Authorization","Bearer "+s.token()).contentType("application/json").content(hotel.replace("}",",\"openingTime\":\"00:00\",\"closingTime\":\"00:00\",\"hasParking\":false}"))).andExpect(status().isOk()).andExpect(jsonPath("$.detail.openingHours").value("24 horas")).andExpect(jsonPath("$.detail.hasParking").value(false));
         mvc.perform(put("/api/owner/hotel").header("Authorization","Bearer "+s.token()).contentType("application/json").content(hotel)).andExpect(status().isOk()).andExpect(jsonPath("$.detail.openingTime").doesNotExist()).andExpect(jsonPath("$.detail.closingTime").doesNotExist()).andExpect(jsonPath("$.detail.openingHours").doesNotExist());
+    }
+    @Test void roomPhotosCannotBeReusedByAnotherRoomOrHotelIdentity() throws Exception {
+        var s=register("photos@example.com"); hotel(s);
+        String path=JsonPath.read(upload(s).getResponse().getContentAsString(),"$.path");
+        var saved=mvc.perform(post("/api/owner/hotel/room-types").header("Authorization","Bearer "+s.token()).contentType("application/json").content(room(path,1))).andExpect(status().isCreated()).andExpect(jsonPath("$.detail.roomTypes[0].photos[0].altText").value("Habitación Matrimonial")).andReturn();
+        Number id=JsonPath.read(saved.getResponse().getContentAsString(),"$.detail.roomTypes[0].id");
+        String other=room(path,1).replace(photoScopes.get(path),"room-"+UUID.randomUUID());
+        mvc.perform(post("/api/owner/hotel/room-types").header("Authorization","Bearer "+s.token()).contentType("application/json").content(other)).andExpect(status().isBadRequest()).andExpect(jsonPath("$.fields['photos.0.path']").exists());
+        mvc.perform(put("/api/owner/hotel").header("Authorization","Bearer "+s.token()).contentType("application/json").content(hotel.replace("}",",\"logoPath\":\""+path+"\"}"))).andExpect(status().isBadRequest());
+        mvc.perform(get("/api/owner/media").header("Authorization","Bearer "+s.token())).andExpect(content().json("[]"));
+        String removed=room(path,1).replace("[{\"path\":\""+path+"\",\"altText\":\"Habitación\"}]","[]");
+        mvc.perform(put("/api/owner/hotel/room-types/"+id).header("Authorization","Bearer "+s.token()).contentType("application/json").content(removed)).andExpect(status().isOk());
+        mvc.perform(post("/api/owner/hotel/room-types").header("Authorization","Bearer "+s.token()).contentType("application/json").content(other)).andExpect(status().isBadRequest());
+    }
+    @Test void ratesAreRealInSolesAndHaveOneEntryPerMode() throws Exception {
+        var s=register("rates@example.com"); hotel(s);
+        String base="""
+            {"name":"Suite","description":"Suite de prueba","displayOrder":0,"totalUnits":2,"availableUnits":1,"photos":[],"details":[],"rates":%s}
+            """;
+        String hour="{\"mode\":\"HOUR\",\"amount\":25,\"simulated\":true}";
+        String pack="{\"mode\":\"PACKAGE\",\"amount\":60,\"packageHours\":3}";
+        String night="{\"mode\":\"NIGHT\",\"amount\":120}";
+        mvc.perform(post("/api/owner/hotel/room-types").header("Authorization","Bearer "+s.token()).contentType("application/json").content(base.formatted("["+hour+","+hour+"]"))).andExpect(status().isBadRequest()).andExpect(jsonPath("$.fields['rates.1.mode']").exists());
+        mvc.perform(post("/api/owner/hotel/room-types").header("Authorization","Bearer "+s.token()).contentType("application/json").content(base.formatted("["+pack+","+pack.replace("\"packageHours\":3","\"packageHours\":6")+"]"))).andExpect(status().isBadRequest());
+        mvc.perform(post("/api/owner/hotel/room-types").header("Authorization","Bearer "+s.token()).contentType("application/json").content(base.formatted("[{\"mode\":\"HOUR\",\"amount\":25,\"currency\":\"USD\"}]"))).andExpect(status().isBadRequest()).andExpect(jsonPath("$.fields['rates.0.currency']").exists());
+        var saved=mvc.perform(post("/api/owner/hotel/room-types").header("Authorization","Bearer "+s.token()).contentType("application/json").content(base.formatted("["+hour+","+pack+","+night+"]"))).andExpect(status().isCreated()).andExpect(jsonPath("$.detail.roomTypes[0].rates.length()").value(3)).andExpect(jsonPath("$.detail.roomTypes[0].rates[0].currency").value("PEN")).andExpect(jsonPath("$.detail.roomTypes[0].rates[0].simulated").value(false)).andReturn();
+        Number id=JsonPath.read(saved.getResponse().getContentAsString(),"$.detail.roomTypes[0].id");
+        mvc.perform(put("/api/owner/hotel/room-types/"+id).header("Authorization","Bearer "+s.token()).contentType("application/json").content(base.formatted("["+pack+","+night+"]"))).andExpect(status().isOk()).andExpect(jsonPath("$.detail.roomTypes[0].rates.length()").value(2));
     }
     @Test void fakeUploadsAndInvalidRatesAreRejected() throws Exception {
         var s=register("owner@example.com"); hotel(s);

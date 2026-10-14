@@ -23,10 +23,11 @@ public class MediaService {
     public record MediaInfo(UUID id,String path,String contentType,String originalName,long byteSize) {}
     private MediaInfo info(MediaFile file) { return new MediaInfo(file.id,"/api/media/"+file.id,file.contentType,file.originalName,file.byteSize); }
     @Transactional(readOnly=true) public List<MediaInfo> list(Long owner) {
-        var h=owners.owned(owner,false); return entities.createQuery("from MediaFile where hotelId=:hotel order by originalName,id",MediaFile.class).setParameter("hotel",h.getId()).getResultStream().map(this::info).toList();
+        var h=owners.owned(owner,false); return entities.createQuery("from MediaFile where hotelId=:hotel and roomScope is null order by originalName,id",MediaFile.class).setParameter("hotel",h.getId()).getResultStream().map(this::info).toList();
     }
-    public MediaInfo upload(Long owner,MultipartFile file) throws IOException {
+    public MediaInfo upload(Long owner,MultipartFile file,String roomScope) throws IOException {
         var hotel=owners.owned(owner,true);
+        if(roomScope!=null) owners.validatePhotoScope(hotel,roomScope);
         if(file.isEmpty() || file.getSize()>100L*1024*1024) throw ApiFailure.field("file","Selecciona un archivo de hasta 100 MB.");
         byte[] bytes=file.getBytes();
         boolean image=bytes.length>24 && ((bytes[0]==(byte)137 && ascii(bytes,1,3).equals("PNG"))
@@ -36,9 +37,10 @@ public class MediaService {
         String type=detect(bytes);
         if(type==null) throw ApiFailure.field("file","El contenido debe ser JPEG, PNG, WebP o MP4 válido.");
         if(type.startsWith("image/") && bytes.length>10*1024*1024) throw ApiFailure.field("file","La imagen supera los 10 MB.");
+        if(roomScope!=null && !type.startsWith("image/")) throw ApiFailure.field("file","Sube una imagen JPEG, PNG o WebP para la habitación.");
         String name=file.getOriginalFilename()==null ? "Archivo" : file.getOriginalFilename().replace('\\','/'); name=name.substring(name.lastIndexOf('/')+1);
         name=name.isBlank()?"Archivo":name.substring(0,Math.min(name.length(),255));
-        var media=new MediaFile(hotel.getId(),type,name,bytes.length); Path target=directory.resolve(media.id.toString());
+        var media=new MediaFile(hotel.getId(),type,name,bytes.length); media.roomScope=roomScope; Path target=directory.resolve(media.id.toString());
         Files.write(target,bytes,StandardOpenOption.CREATE_NEW);
         TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
             @Override public void afterCompletion(int status) { if(status!=STATUS_COMMITTED) removeFile(target); }
