@@ -11,10 +11,10 @@ public final class CatalogDtos {
     private CatalogDtos() {
     }
 
-    public record HotelSummary(Long id, String name, String description, String location, String logoPath) {
+    public record HotelSummary(Long id, String code, String name, String description, String location, String logoPath) {
     }
 
-    public record HotelDetail(Long id, String name, String description, String address, String location,
+    public record HotelDetail(Long id, String code, String name, String description, String address, String location,
                               String phone, String logoPath, String facadePath, String videoPath, BigDecimal latitude,
                               BigDecimal longitude, String openingHours, String checkInOutConditions,
                               Boolean hasParking, String mapUrl, LocalTime openingTime, LocalTime closingTime,

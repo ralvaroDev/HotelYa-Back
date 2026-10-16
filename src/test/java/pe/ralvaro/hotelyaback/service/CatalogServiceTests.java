@@ -39,6 +39,7 @@ class CatalogServiceTests {
 
         assertEquals(1, result.size());
         assertEquals("Hotel", result.getFirst().name());
+        assertEquals("hotel", result.getFirst().code());
     }
 
     @Test
@@ -55,6 +56,7 @@ class CatalogServiceTests {
 
         assertEquals(404, assertThrows(ResponseStatusException.class, () -> service.detail(9L)).getStatusCode().value());
         assertEquals("Hotel", service.ownerDetail(9L).name());
+        assertEquals("hotel", service.ownerDetail(9L).code());
     }
 
     @Test
@@ -71,6 +73,7 @@ class CatalogServiceTests {
 
         var result = service.detail(9L);
 
+        assertEquals("hotel", result.code());
         assertEquals("Lima", result.location());
         assertNull(result.phone());
         assertEquals("Descansa", result.stayCards().getFirst().title());
