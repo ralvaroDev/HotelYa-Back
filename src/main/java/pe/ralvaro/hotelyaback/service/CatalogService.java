@@ -29,7 +29,7 @@ public class CatalogService {
 
     public List<HotelSummary> list() {
         return hotels.findAll(Sort.by("name", "id")).stream().filter(h -> h.isPublished()).map(h ->
-                new HotelSummary(h.getId(), h.getName(), h.getDescription(), h.getLocation(), h.getLogoPath())).toList();
+                new HotelSummary(h.getId(), h.getCode(), h.getName(), h.getDescription(), h.getLocation(), h.getLogoPath())).toList();
     }
 
     public HotelDetail detail(Long id) {
@@ -51,7 +51,7 @@ public class CatalogService {
                         r.getDetails().stream().map(d -> new Detail(d.getKind(), d.getText())).toList(),
                         r.getRates().stream().map(t -> new RateInfo(t.getMode(), t.getAmount(), t.getCurrency(),
                                 t.getPackageHours(), t.getAdditionalHourAmount(), t.getSimulated())).toList(), r.getTotalUnits(), r.getAvailableUnits())).toList();
-        return new HotelDetail(h.getId(), h.getName(), h.getDescription(), h.getAddress(), h.getLocation(),
+        return new HotelDetail(h.getId(), h.getCode(), h.getName(), h.getDescription(), h.getAddress(), h.getLocation(),
                 h.getPhone(), h.getLogoPath(), h.getFacadePath(), h.getVideoPath(), h.getLatitude(),
                 h.getLongitude(), h.getOpeningHours(), h.getCheckInOutConditions(),
                 h.getHasParking(), h.getMapUrl(), h.getOpeningTime(), h.getClosingTime(), types, cards.findByHotelIdOrderByDisplayOrderAscIdAsc(id).stream().map(c -> new StayCardInfo(c.getTitle(), c.getDescription())).toList());

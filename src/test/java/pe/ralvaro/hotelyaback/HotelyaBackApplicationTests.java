@@ -78,8 +78,10 @@ class HotelyaBackApplicationTests {
         Long id = seed();
         mvc.perform(get("/api/hotels")).andExpect(status().isOk())
                 .andExpect(jsonPath("$.length()").value(1))
+                .andExpect(jsonPath("$[0].code").value("lumis-hotel"))
                 .andExpect(jsonPath("$[0].name").value("Lumi's Hotel"));
         mvc.perform(get("/api/hotels/" + id)).andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value("lumis-hotel"))
                 .andExpect(jsonPath("$.roomTypes.length()").value(3))
                 .andExpect(jsonPath("$.roomTypes[0].name").value("Temática"))
                 .andExpect(jsonPath("$.roomTypes[0].photos[0].path").value("assets/images/lumis-cuarto-tematico.jpg"))
